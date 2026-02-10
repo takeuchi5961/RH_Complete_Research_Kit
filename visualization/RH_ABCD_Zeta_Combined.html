@@ -1,0 +1,937 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RH 幾何学モデル — ABCD構造 + 複素数グラフ</title>
+    <style>
+        :root {
+            --bg: #0a0a0f;
+            --grid: #1a1a2e;
+            --axis: #3a3a5e;
+            --text: #e0e0e0;
+            --accent: #00d4ff;
+            --critical: #ff3366;
+            --point-a: #ff6b35;
+            --point-b: #7bed9f;
+            --point-c: #a855f7;
+            --point-d: #ffd93d;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Courier New', monospace;
+            min-height: 100vh;
+            padding: 10px;
+        }
+
+        h1 {
+            font-size: 1rem;
+            font-weight: 400;
+            letter-spacing: 0.1em;
+            margin-bottom: 10px;
+            color: var(--accent);
+            text-align: center;
+        }
+
+        .container {
+            display: flex;
+            gap: 15px;
+            align-items: flex-start;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .canvas-wrapper {
+            background: linear-gradient(135deg, #0d0d15 0%, #1a1a2e 100%);
+            border: 1px solid var(--axis);
+            border-radius: 4px;
+            padding: 5px;
+        }
+
+        .right-col {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            width: 320px;
+        }
+
+        canvas { display: block; }
+
+        .panel {
+            background: linear-gradient(135deg, #0d0d15 0%, #1a1a2e 100%);
+            border: 1px solid var(--axis);
+            border-radius: 4px;
+            padding: 10px;
+            font-size: 0.75rem;
+        }
+
+        .section-title {
+            color: var(--accent);
+            font-size: 0.8rem;
+            margin: 10px 0 5px 0;
+            border-bottom: 1px solid var(--axis);
+            padding-bottom: 3px;
+        }
+
+        .control-group { margin-bottom: 10px; }
+        .control-group label {
+            display: block;
+            margin-bottom: 4px;
+            font-size: 0.7rem;
+            color: #888;
+        }
+
+        .input-row {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+        }
+
+        input[type="text"], input[type="number"] {
+            flex: 1;
+            background: var(--bg);
+            border: 1px solid var(--axis);
+            color: var(--text);
+            padding: 6px 8px;
+            font-family: inherit;
+            font-size: 0.8rem;
+            border-radius: 2px;
+            outline: none;
+        }
+        input:focus { border-color: var(--accent); }
+
+        .slider-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        input[type="range"] {
+            flex: 1;
+            -webkit-appearance: none;
+            background: var(--axis);
+            height: 3px;
+            border-radius: 2px;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 14px;
+            height: 14px;
+            background: var(--accent);
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        .val {
+            font-size: 0.8rem;
+            min-width: 70px;
+            text-align: right;
+            color: var(--critical);
+            font-weight: bold;
+        }
+
+        .buttons {
+            display: flex;
+            gap: 5px;
+            margin: 8px 0;
+            flex-wrap: wrap;
+        }
+
+        button {
+            padding: 6px 10px;
+            background: transparent;
+            border: 1px solid var(--accent);
+            color: var(--accent);
+            font-family: inherit;
+            font-size: 0.7rem;
+            cursor: pointer;
+            border-radius: 2px;
+        }
+        button:hover {
+            background: var(--accent);
+            color: var(--bg);
+        }
+        button.active {
+            background: var(--accent);
+            color: var(--bg);
+        }
+        button.primary {
+            border-color: var(--critical);
+            color: var(--critical);
+        }
+        button.primary:hover {
+            background: var(--critical);
+            color: var(--bg);
+        }
+
+        .info {
+            font-size: 0.65rem;
+            line-height: 1.5;
+            color: #888;
+            border-top: 1px solid var(--axis);
+            padding-top: 8px;
+            margin-top: 8px;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 8px;
+        }
+        .info-label { color: #666; }
+        .info-value { color: var(--text); text-align: right; }
+        .info-value.ok { color: #7bed9f; font-weight: bold; }
+        .info-value.critical { color: var(--critical); font-weight: bold; }
+
+        .formula-box {
+            margin-top: 8px;
+            padding: 6px;
+            border: 1px solid var(--axis);
+            border-radius: 4px;
+            font-size: 0.65rem;
+            line-height: 1.6;
+        }
+        .formula-box .highlight { color: var(--critical); }
+
+        .tiny-note {
+            color: #8d8da7;
+            font-size: 0.62rem;
+            line-height: 1.4;
+            margin-top: 6px;
+        }
+
+        .check-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 8px 0 4px 0;
+            font-size: 0.7rem;
+            color: #aaa;
+        }
+
+        .zeta-canvas-wrap {
+            background: #0b0b12;
+            border: 1px solid var(--axis);
+            border-radius: 4px;
+            padding: 5px;
+            margin-bottom: 6px;
+        }
+    </style>
+</head>
+<body>
+    <h1>RH 幾何学モデル — ABCD構造 + 複素数グラフ（ζ(s)）</h1>
+
+    <div class="container">
+        <!-- 左：ABCDメイン -->
+        <div class="canvas-wrapper">
+            <canvas id="canvas" width="550" height="550"></canvas>
+        </div>
+
+        <!-- 右：コントロール + ζ -->
+        <div class="right-col">
+
+            <div class="panel">
+                <div class="section-title">ABCD パラメータ（関係式そのまま）</div>
+
+                <div class="control-group">
+                    <label>R₀ (A,Bの位置 = ±R₀)</label>
+                    <div class="input-row">
+                        <input type="number" id="inp-r0" value="0.5" step="0.01" min="0.1" max="1.5">
+                        <button class="primary" id="btn-set">SET</button>
+                    </div>
+                </div>
+
+                <div class="section-title">C の位置（Y軸上）</div>
+                <div class="control-group">
+                    <label>C.y（Dと水平に紐付け）</label>
+                    <div class="slider-row">
+                        <input type="range" id="sld-cy" min="-3" max="3" step="0.001" value="0">
+                        <span class="val" id="val-cy">0.000</span>
+                    </div>
+                </div>
+                <div class="buttons">
+                    <button id="btn-auto" class="active">🔗 自動追従</button>
+                    <button id="btn-manual">✋ 手動</button>
+                </div>
+
+                <div class="section-title">D の回転（B中心）</div>
+                <div class="control-group">
+                    <label>回転角 θ</label>
+                    <div class="slider-row">
+                        <input type="range" id="sld-theta" min="0" max="6.2832" step="0.001" value="0">
+                        <span class="val" id="val-theta">0°</span>
+                    </div>
+                </div>
+                <div class="buttons">
+                    <button id="btn-play">▶ 回転</button>
+                    <button id="btn-reset">↺ リセット</button>
+                    <button id="btn-pi">θ=π</button>
+                </div>
+
+                <div class="info">
+                    <div class="info-row"><span class="info-label">A</span><span class="info-value" id="v-a">—</span></div>
+                    <div class="info-row"><span class="info-label">B</span><span class="info-value" id="v-b">—</span></div>
+                    <div class="info-row"><span class="info-label">C</span><span class="info-value" id="v-c">—</span></div>
+                    <div class="info-row"><span class="info-label">D</span><span class="info-value" id="v-d">—</span></div>
+                    <div class="info-row"><span class="info-label">|BD|</span><span class="info-value" id="v-bd">—</span></div>
+                    <div class="info-row"><span class="info-label">|CD|</span><span class="info-value" id="v-cd">—</span></div>
+                    <div class="info-row"><span class="info-label">D.x</span><span class="info-value" id="v-dx">—</span></div>
+                    <div class="info-row"><span class="info-label">D.x = 0 ?</span><span class="info-value" id="v-eq">—</span></div>
+                </div>
+
+                <div class="formula-box">
+                    <div>A = (-R₀, 0), B = (+R₀, 0)</div>
+                    <div>C = (0, C.y) — Y軸上</div>
+                    <div>D = B + |BD|·e^(-iθ)</div>
+                    <div>|BD| = 1 - R₀</div>
+                    <div class="highlight">θ=π → D.x = R₀-(1-R₀) = 2R₀-1</div>
+                    <div class="highlight">D.x=0 ⟺ R₀=0.5 ★</div>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="section-title">複素数グラフ + リーマンの式</div>
+
+                <div class="zeta-canvas-wrap">
+                    <canvas id="zetaCanvas" width="300" height="300"></canvas>
+                </div>
+
+                <div class="control-group">
+                    <label>実部 σ（s = σ + it）</label>
+                    <div class="slider-row">
+                        <input type="range" id="sld-sigma" min="0.1" max="0.9" step="0.001" value="0.5">
+                        <span class="val" id="val-sigma">0.500</span>
+                    </div>
+                    <div class="input-row" style="margin-top:6px;">
+                        <input type="number" id="inp-sigma" min="0.1" max="0.9" step="0.001" value="0.5">
+                        <button id="btn-critical-line">σ=0.5</button>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label>虚部 t</label>
+                    <div class="slider-row">
+                        <input type="range" id="sld-t" min="0" max="80" step="0.001" value="14.134725">
+                        <span class="val" id="val-t">14.134725</span>
+                    </div>
+                    <div class="input-row" style="margin-top:6px;">
+                        <input type="number" id="inp-t" min="0" max="100000" step="0.001" value="14.134725">
+                        <button id="btn-t-play">▶ t再生</button>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label>級数項数 N（大きいほど精密/重い）</label>
+                    <div class="input-row">
+                        <input type="number" id="inp-n" min="20" max="5000" step="10" value="800">
+                        <button id="btn-clear-trail">軌跡クリア</button>
+                    </div>
+                </div>
+
+                <div class="buttons">
+                    <button id="btn-zero1">第1零点t</button>
+                    <button id="btn-zero2">第2零点t</button>
+                    <button id="btn-zero3">第3零点t</button>
+                </div>
+
+                <div class="check-row">
+                    <input type="checkbox" id="chk-sync-theta">
+                    <label for="chk-sync-theta">θを t に同期（θ = t mod 2π）</label>
+                </div>
+
+                <div class="info">
+                    <div class="info-row"><span class="info-label">s</span><span class="info-value" id="vz-s">—</span></div>
+                    <div class="info-row"><span class="info-label">ζ(s)</span><span class="info-value" id="vz-zeta">—</span></div>
+                    <div class="info-row"><span class="info-label">|ζ(s)|</span><span class="info-value" id="vz-abs">—</span></div>
+                    <div class="info-row"><span class="info-label">arg ζ(s)</span><span class="info-value" id="vz-arg">—</span></div>
+                    <div class="info-row"><span class="info-label">近似零点判定</span><span class="info-value" id="vz-zero">—</span></div>
+                </div>
+
+                <div class="formula-box">
+                    <div>追加した式（Dirichlet η 経由）</div>
+                    <div>ζ(s) = η(s) / (1 - 2^(1-s))</div>
+                    <div>η(s) = Σ[(-1)^(n-1) / n^s] (n=1..N)</div>
+                    <div>有効域: Re(s)>0, s≠1（数値近似）</div>
+                </div>
+
+                <div class="tiny-note">
+                    ※ ABCDの関係式（A,B,C,Dの定義・Dの回転式）は変更していません。<br>
+                    ※ 追加は「ζ(s)の計算と複素数プロット」だけです。
+                </div>
+            </div>
+        </div>
+    </div>
+
+<script>
+/* =========================
+   ABCD メインキャンバス
+========================= */
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+const CX = W / 2, CY = H / 2;
+const SCALE = 150;
+
+// State (ABCD)
+let R0 = 0.5;
+let cY = 0;
+let theta = 0;
+let autoMode = true;
+let playing = false;
+let lastTime = 0;
+
+// DOM (ABCD)
+const inpR0 = document.getElementById('inp-r0');
+const btnSet = document.getElementById('btn-set');
+const sldCy = document.getElementById('sld-cy');
+const valCy = document.getElementById('val-cy');
+const sldTheta = document.getElementById('sld-theta');
+const valTheta = document.getElementById('val-theta');
+const btnAuto = document.getElementById('btn-auto');
+const btnManual = document.getElementById('btn-manual');
+const btnPlay = document.getElementById('btn-play');
+const btnReset = document.getElementById('btn-reset');
+const btnPi = document.getElementById('btn-pi');
+
+const vA = document.getElementById('v-a');
+const vB = document.getElementById('v-b');
+const vC = document.getElementById('v-c');
+const vD = document.getElementById('v-d');
+const vBD = document.getElementById('v-bd');
+const vCD = document.getElementById('v-cd');
+const vDx = document.getElementById('v-dx');
+const vEq = document.getElementById('v-eq');
+
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+// Coordinate transforms
+function tx(x) { return CX + x * SCALE; }
+function ty(y) { return CY - y * SCALE; }
+
+// ===== Model (ここは元式を維持) =====
+function getBD(r0) { return Math.abs(1 - r0); }
+
+function calcPoints() {
+    const A = { x: -R0, y: 0 };
+    const B = { x: R0, y: 0 };
+    const bd = getBD(R0);
+
+    // D = B + |BD| e^{-iθ}
+    const D = {
+        x: B.x + bd * Math.cos(-theta),
+        y: B.y + bd * Math.sin(-theta)
+    };
+
+    // C: Y軸上、自動モードならD.yに追従
+    if (autoMode) {
+        cY = D.y;
+        sldCy.value = clamp(cY, -3, 3);
+        valCy.textContent = cY.toFixed(3);
+    }
+
+    const C = { x: 0, y: cY };
+    return { A, B, C, D, bd };
+}
+
+function dist(p1, p2) {
+    return Math.hypot(p1.x - p2.x, p1.y - p2.y);
+}
+
+// Drawing (ABCD)
+function drawGrid() {
+    ctx.strokeStyle = '#1a1a2e';
+    ctx.lineWidth = 1;
+    for (let i = -2; i <= 2; i += 0.5) {
+        ctx.beginPath(); ctx.moveTo(tx(i), 0); ctx.lineTo(tx(i), H); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0, ty(i)); ctx.lineTo(W, ty(i)); ctx.stroke();
+    }
+}
+
+function drawAxes() {
+    ctx.strokeStyle = '#3a3a5e';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(0, CY); ctx.lineTo(W, CY); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(CX, 0); ctx.lineTo(CX, H); ctx.stroke();
+
+    ctx.fillStyle = '#666';
+    ctx.font = '11px Courier New';
+    ctx.fillText('Re', W - 25, CY - 8);
+    ctx.fillText('Im', CX + 8, 18);
+}
+
+function drawCircle(cx, cy, r, color) {
+    if (r <= 0) return;
+    ctx.beginPath();
+    ctx.arc(tx(cx), ty(cy), r * SCALE, 0, Math.PI * 2);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+}
+
+function drawLine(p1, p2, color, width = 2) {
+    ctx.beginPath();
+    ctx.moveTo(tx(p1.x), ty(p1.y));
+    ctx.lineTo(tx(p2.x), ty(p2.y));
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.stroke();
+}
+
+function drawDashedLine(p1, p2, color) {
+    ctx.beginPath();
+    ctx.moveTo(tx(p1.x), ty(p1.y));
+    ctx.lineTo(tx(p2.x), ty(p2.y));
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 3]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+}
+
+function drawPoint(x, y, color, label, radius = 6) {
+    ctx.beginPath();
+    ctx.arc(tx(x), ty(y), radius, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 12px Courier New';
+    ctx.fillText(label, tx(x) + radius + 4, ty(y) - radius);
+}
+
+/* =========================
+   ζ(s) 複素数グラフ
+========================= */
+const zetaCanvas = document.getElementById('zetaCanvas');
+const zctx = zetaCanvas.getContext('2d');
+const ZW = zetaCanvas.width, ZH = zetaCanvas.height;
+const ZCX = ZW / 2, ZCY = ZH / 2;
+
+// State (zeta)
+let sigma = 0.5;
+let tVal = 14.134725;
+let nTerms = 800;
+let playingT = false;
+let tSpeed = 0.8; // t の進む速さ
+let syncTheta = false;
+let zTrail = [];
+let prevTrailT = null;
+
+// DOM (zeta)
+const sldSigma = document.getElementById('sld-sigma');
+const valSigma = document.getElementById('val-sigma');
+const inpSigma = document.getElementById('inp-sigma');
+const btnCriticalLine = document.getElementById('btn-critical-line');
+
+const sldT = document.getElementById('sld-t');
+const valT = document.getElementById('val-t');
+const inpT = document.getElementById('inp-t');
+const btnTPlay = document.getElementById('btn-t-play');
+
+const inpN = document.getElementById('inp-n');
+const btnClearTrail = document.getElementById('btn-clear-trail');
+
+const btnZero1 = document.getElementById('btn-zero1');
+const btnZero2 = document.getElementById('btn-zero2');
+const btnZero3 = document.getElementById('btn-zero3');
+
+const chkSyncTheta = document.getElementById('chk-sync-theta');
+
+const vzS = document.getElementById('vz-s');
+const vzZeta = document.getElementById('vz-zeta');
+const vzAbs = document.getElementById('vz-abs');
+const vzArg = document.getElementById('vz-arg');
+const vzZero = document.getElementById('vz-zero');
+
+// Complex helpers
+function c(re = 0, im = 0) { return { re, im }; }
+function cAdd(a, b) { return { re: a.re + b.re, im: a.im + b.im }; }
+function cSub(a, b) { return { re: a.re - b.re, im: a.im - b.im }; }
+function cMul(a, b) {
+    return { re: a.re * b.re - a.im * b.im, im: a.re * b.im + a.im * b.re };
+}
+function cDiv(a, b) {
+    const d = b.re * b.re + b.im * b.im;
+    if (d === 0) return { re: Infinity, im: Infinity };
+    return {
+        re: (a.re * b.re + a.im * b.im) / d,
+        im: (a.im * b.re - a.re * b.im) / d
+    };
+}
+function cAbs(z) { return Math.hypot(z.re, z.im); }
+function cArg(z) { return Math.atan2(z.im, z.re); }
+
+// ζ(s) via η(s): ζ(s) = η(s)/(1-2^{1-s}), η(s)=Σ (-1)^{n-1}/n^s
+function zetaEta(sigma, t, N) {
+    let eta = c(0, 0);
+
+    for (let n = 1; n <= N; n++) {
+        const ln = Math.log(n);
+        const mag = Math.exp(-sigma * ln);   // n^{-sigma}
+        const ang = -t * ln;                 // e^{-it ln n}
+        let term = c(mag * Math.cos(ang), mag * Math.sin(ang));
+
+        if ((n & 1) === 0) { // even n => subtract
+            term.re = -term.re;
+            term.im = -term.im;
+        }
+        eta = cAdd(eta, term);
+    }
+
+    const ln2 = Math.log(2);
+    const mag2 = Math.exp((1 - sigma) * ln2); // |2^{1-s}|
+    const ang2 = -t * ln2;
+    const twoPow = c(mag2 * Math.cos(ang2), mag2 * Math.sin(ang2));
+
+    const denom = cSub(c(1, 0), twoPow); // 1 - 2^(1-s)
+    return cDiv(eta, denom);
+}
+
+function mapZ(re, im, unit) {
+    return { x: ZCX + re * unit, y: ZCY - im * unit };
+}
+
+function drawZetaPlane(z) {
+    zctx.fillStyle = '#0a0a0f';
+    zctx.fillRect(0, 0, ZW, ZH);
+
+    // autoscale
+    let maxAbs = Math.max(1.2, Math.abs(z.re), Math.abs(z.im));
+    for (let i = 0; i < zTrail.length; i++) {
+        const p = zTrail[i];
+        maxAbs = Math.max(maxAbs, Math.abs(p.re), Math.abs(p.im));
+    }
+    maxAbs *= 1.15;
+    const unit = (Math.min(ZW, ZH) * 0.42) / maxAbs;
+
+    // grid
+    zctx.strokeStyle = 'rgba(58,58,94,0.35)';
+    zctx.lineWidth = 1;
+
+    const step = unit; // 1単位刻み
+    for (let x = ZCX % step; x <= ZW; x += step) {
+        zctx.beginPath(); zctx.moveTo(x, 0); zctx.lineTo(x, ZH); zctx.stroke();
+    }
+    for (let y = ZCY % step; y <= ZH; y += step) {
+        zctx.beginPath(); zctx.moveTo(0, y); zctx.lineTo(ZW, y); zctx.stroke();
+    }
+
+    // axes
+    zctx.strokeStyle = '#5a5a88';
+    zctx.lineWidth = 2;
+    zctx.beginPath(); zctx.moveTo(0, ZCY); zctx.lineTo(ZW, ZCY); zctx.stroke();
+    zctx.beginPath(); zctx.moveTo(ZCX, 0); zctx.lineTo(ZCX, ZH); zctx.stroke();
+
+    // trail
+    if (zTrail.length > 1) {
+        zctx.beginPath();
+        const p0 = mapZ(zTrail[0].re, zTrail[0].im, unit);
+        zctx.moveTo(p0.x, p0.y);
+        for (let i = 1; i < zTrail.length; i++) {
+            const p = mapZ(zTrail[i].re, zTrail[i].im, unit);
+            zctx.lineTo(p.x, p.y);
+        }
+        zctx.strokeStyle = 'rgba(0, 212, 255, 0.6)';
+        zctx.lineWidth = 1.5;
+        zctx.stroke();
+    }
+
+    // origin
+    zctx.beginPath();
+    zctx.arc(ZCX, ZCY, 4, 0, Math.PI * 2);
+    zctx.fillStyle = '#ff3366';
+    zctx.fill();
+
+    // current zeta point
+    const zp = mapZ(z.re, z.im, unit);
+    zctx.beginPath();
+    zctx.arc(zp.x, zp.y, 6, 0, Math.PI * 2);
+    zctx.fillStyle = '#ffd93d';
+    zctx.fill();
+    zctx.strokeStyle = '#fff';
+    zctx.lineWidth = 1;
+    zctx.stroke();
+
+    // info
+    zctx.fillStyle = '#00d4ff';
+    zctx.font = '11px Courier New';
+    zctx.fillText('ζ(s) 複素平面', 10, 16);
+
+    zctx.fillStyle = '#aab';
+    zctx.fillText(`scale: 1unit = ${unit.toFixed(1)}px`, 10, ZH - 10);
+
+    zctx.fillStyle = '#aaa';
+    zctx.fillText('Re', ZW - 22, ZCY - 8);
+    zctx.fillText('Im', ZCX + 8, 14);
+}
+
+function setSigma(v) {
+    sigma = clamp(Number(v), 0.1, 0.9);
+    sldSigma.value = sigma;
+    inpSigma.value = sigma.toFixed(3);
+    valSigma.textContent = sigma.toFixed(3);
+}
+function setT(v) {
+    tVal = Math.max(0, Number(v));
+    sldT.value = clamp(tVal, Number(sldT.min), Number(sldT.max));
+    inpT.value = tVal.toFixed(6);
+    valT.textContent = tVal.toFixed(6);
+}
+function setN(v) {
+    nTerms = Math.round(clamp(Number(v), 20, 5000));
+    inpN.value = nTerms;
+}
+function toggleTPlay() {
+    playingT = !playingT;
+    btnTPlay.textContent = playingT ? '⏸ t停止' : '▶ t再生';
+    btnTPlay.classList.toggle('active', playingT);
+}
+function pushTrail(z) {
+    zTrail.push({ re: z.re, im: z.im });
+    if (zTrail.length > 800) zTrail.shift();
+}
+function formatComplex(z, digits = 8) {
+    const sign = z.im >= 0 ? '+' : '-';
+    return `${z.re.toFixed(digits)} ${sign} ${Math.abs(z.im).toFixed(digits)}i`;
+}
+
+/* =========================
+   メイン描画ループ
+========================= */
+function draw(timestamp) {
+    const dt = lastTime ? (timestamp - lastTime) / 1000 : 0;
+    lastTime = timestamp;
+
+    // θ 回転（既存）
+    if (playing) {
+        theta += dt * 1.5;
+        theta = theta % (Math.PI * 2);
+        sldTheta.value = theta;
+        valTheta.textContent = (theta * 180 / Math.PI).toFixed(1) + '°';
+    }
+
+    // t 再生（追加）
+    if (playingT) {
+        tVal += dt * tSpeed;
+        if (tVal > 100000) tVal = 0;
+        if (tVal <= Number(sldT.max)) sldT.value = tVal;
+        inpT.value = tVal.toFixed(6);
+        valT.textContent = tVal.toFixed(6);
+    }
+
+    // θ同期（追加, 関係式は不変）
+    if (syncTheta) {
+        const twoPi = 2 * Math.PI;
+        theta = ((tVal % twoPi) + twoPi) % twoPi;
+        sldTheta.value = theta;
+        valTheta.textContent = (theta * 180 / Math.PI).toFixed(1) + '°';
+    }
+
+    // ---- ABCD描画 ----
+    ctx.fillStyle = '#0a0a0f';
+    ctx.fillRect(0, 0, W, H);
+
+    drawGrid();
+    drawAxes();
+
+    const { A, B, C, D, bd } = calcPoints();
+    const cd = dist(C, D);
+    const isEq = Math.abs(D.x) < 0.01;
+
+    drawCircle(B.x, B.y, bd, 'rgba(255, 217, 61, 0.25)');
+    drawDashedLine({ x: -2, y: C.y }, { x: 2, y: C.y }, 'rgba(168, 85, 247, 0.4)');
+
+    if (Math.abs(D.x) > 0.02) {
+        drawDashedLine(D, { x: 0, y: D.y }, 'rgba(255, 217, 61, 0.5)');
+    }
+
+    drawLine(C, D, 'rgba(168, 85, 247, 0.7)', 2);
+    drawLine(A, D, '#ff6b35', 2);
+    drawLine(B, D, '#7bed9f', 2);
+
+    if (isEq) {
+        ctx.strokeStyle = '#ff3366';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(CX, 0);
+        ctx.lineTo(CX, H);
+        ctx.stroke();
+    }
+
+    drawPoint(0, 0, '#ff3366', 'O', 4);
+    drawPoint(A.x, A.y, '#ff6b35', 'A', 6);
+    drawPoint(B.x, B.y, '#7bed9f', 'B', 6);
+    drawPoint(C.x, C.y, '#a855f7', 'C', 7);
+    drawPoint(D.x, D.y, isEq ? '#ff3366' : '#ffd93d', 'D', 8);
+
+    if (Math.abs(D.x) > 0.02) {
+        ctx.beginPath();
+        ctx.arc(tx(0), ty(D.y), 4, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255, 217, 61, 0.6)';
+        ctx.fill();
+    }
+
+    ctx.fillStyle = '#00d4ff';
+    ctx.font = '11px Courier New';
+    ctx.textAlign = 'center';
+    ctx.fillText(`R₀=${R0.toFixed(4)}  |BD|=${bd.toFixed(4)}  θ=${(theta*180/Math.PI).toFixed(1)}°`, CX, H - 35);
+    ctx.fillText(`θ=π での D.x = ${(R0 - bd).toFixed(4)} (= 2R₀-1)`, CX, H - 20);
+
+    const isCritical = Math.abs(R0 - 0.5) < 0.001;
+    ctx.fillStyle = isCritical ? '#ff3366' : '#666';
+    ctx.fillText(isCritical ? '★ R₀=0.5: 臨界値 ★' : `R₀=0.5との差: ${(R0 - 0.5).toFixed(4)}`, CX, H - 5);
+
+    // ABCD UI更新
+    vA.textContent = `(${A.x.toFixed(3)}, ${A.y.toFixed(3)})`;
+    vB.textContent = `(${B.x.toFixed(3)}, ${B.y.toFixed(3)})`;
+    vC.textContent = `(${C.x.toFixed(3)}, ${C.y.toFixed(3)})`;
+    vD.textContent = `(${D.x.toFixed(3)}, ${D.y.toFixed(3)})`;
+    vBD.textContent = bd.toFixed(4);
+    vCD.textContent = cd.toFixed(4);
+    vDx.textContent = D.x.toFixed(6);
+    vDx.className = 'info-value' + (isEq ? ' critical' : '');
+    vEq.textContent = isEq ? 'YES ★' : 'NO';
+    vEq.className = 'info-value' + (isEq ? ' ok' : '');
+
+    // ---- ζ計算 + 描画 ----
+    const z = zetaEta(sigma, tVal, nTerms);
+    const absZ = cAbs(z);
+    const argZ = cArg(z);
+
+    if (prevTrailT === null || Math.abs(tVal - prevTrailT) > 1e-6 || playingT) {
+        pushTrail(z);
+        prevTrailT = tVal;
+    }
+
+    drawZetaPlane(z);
+
+    vzS.textContent = `${sigma.toFixed(4)} + ${tVal.toFixed(6)}i`;
+    vzZeta.textContent = formatComplex(z, 8);
+    vzAbs.textContent = absZ.toExponential(6);
+    vzArg.textContent = `${argZ.toFixed(6)} rad`;
+
+    const nearZero = absZ < 5e-2;
+    vzZero.textContent = nearZero ? 'NEAR ZERO ★' : '—';
+    vzZero.className = 'info-value' + (nearZero ? ' ok' : '');
+
+    requestAnimationFrame(draw);
+}
+
+/* =========================
+   Events (ABCD)
+========================= */
+btnSet.onclick = () => {
+    const v = parseFloat(inpR0.value);
+    if (!isNaN(v) && v >= 0.1 && v <= 1.5) {
+        R0 = v;
+    }
+};
+inpR0.onkeypress = (e) => { if (e.key === 'Enter') btnSet.click(); };
+
+sldCy.oninput = () => {
+    if (!autoMode) {
+        cY = parseFloat(sldCy.value);
+        valCy.textContent = cY.toFixed(3);
+    }
+};
+
+sldTheta.oninput = () => {
+    theta = parseFloat(sldTheta.value);
+    valTheta.textContent = (theta * 180 / Math.PI).toFixed(1) + '°';
+    playing = false;
+    btnPlay.textContent = '▶ 回転';
+    btnPlay.classList.remove('active');
+};
+
+btnAuto.onclick = () => {
+    autoMode = true;
+    btnAuto.classList.add('active');
+    btnManual.classList.remove('active');
+};
+
+btnManual.onclick = () => {
+    autoMode = false;
+    btnManual.classList.add('active');
+    btnAuto.classList.remove('active');
+};
+
+btnPlay.onclick = () => {
+    playing = !playing;
+    btnPlay.textContent = playing ? '⏸ 停止' : '▶ 回転';
+    btnPlay.classList.toggle('active', playing);
+};
+
+btnReset.onclick = () => {
+    theta = 0;
+    cY = 0;
+    sldCy.value = 0;
+    valCy.textContent = '0.000';
+    sldTheta.value = 0;
+    valTheta.textContent = '0°';
+    playing = false;
+    btnPlay.textContent = '▶ 回転';
+    btnPlay.classList.remove('active');
+
+    autoMode = true;
+    btnAuto.classList.add('active');
+    btnManual.classList.remove('active');
+
+    // ζ側も初期化
+    setSigma(0.5);
+    setT(14.134725);
+    setN(800);
+    playingT = false;
+    btnTPlay.textContent = '▶ t再生';
+    btnTPlay.classList.remove('active');
+    zTrail = [];
+    prevTrailT = null;
+};
+
+btnPi.onclick = () => {
+    theta = Math.PI;
+    sldTheta.value = Math.PI;
+    valTheta.textContent = '180°';
+    playing = false;
+    btnPlay.textContent = '▶ 回転';
+    btnPlay.classList.remove('active');
+};
+
+/* =========================
+   Events (ζ)
+========================= */
+sldSigma.oninput = () => setSigma(sldSigma.value);
+inpSigma.onchange = () => setSigma(inpSigma.value);
+btnCriticalLine.onclick = () => setSigma(0.5);
+
+sldT.oninput = () => setT(sldT.value);
+inpT.onchange = () => setT(inpT.value);
+
+inpN.onchange = () => setN(inpN.value);
+
+btnTPlay.onclick = () => toggleTPlay();
+btnClearTrail.onclick = () => { zTrail = []; prevTrailT = null; };
+
+btnZero1.onclick = () => setT(14.134725142);
+btnZero2.onclick = () => setT(21.022039639);
+btnZero3.onclick = () => setT(25.010857580);
+
+chkSyncTheta.onchange = () => { syncTheta = chkSyncTheta.checked; };
+
+// 初期表示同期
+setSigma(sigma);
+setT(tVal);
+setN(nTerms);
+valCy.textContent = cY.toFixed(3);
+valTheta.textContent = '0°';
+
+// Start
+requestAnimationFrame(draw);
+</script>
+</body>
+</html>

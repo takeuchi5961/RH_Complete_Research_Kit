@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RH 幾何学モデル — ABCD構造</title>
+    <style>
+        :root {
+            --bg: #0a0a0f;
+            --grid: #1a1a2e;
+            --axis: #3a3a5e;
+            --text: #e0e0e0;
+            --accent: #00d4ff;
+            --critical: #ff3366;
+            --point-a: #ff6b35;
+            --point-b: #7bed9f;
+            --point-c: #a855f7;
+            --point-d: #ffd93d;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Courier New', monospace;
+            min-height: 100vh;
+            padding: 10px;
+        }
+        h1 { font-size: 1rem; font-weight: 400; letter-spacing: 0.1em; margin-bottom: 10px; color: var(--accent); text-align: center; }
+        .container { display: flex; gap: 15px; align-items: flex-start; justify-content: center; }
+        .canvas-wrapper { background: linear-gradient(135deg, #0d0d15 0%, #1a1a2e 100%); border: 1px solid var(--axis); border-radius: 4px; padding: 5px; }
+        canvas { display: block; }
+        .controls { background: linear-gradient(135deg, #0d0d15 0%, #1a1a2e 100%); border: 1px solid var(--axis); border-radius: 4px; padding: 10px; width: 280px; font-size: 0.75rem; }
+        .section-title { color: var(--accent); font-size: 0.8rem; margin: 10px 0 5px 0; border-bottom: 1px solid var(--axis); padding-bottom: 3px; }
+        .control-group { margin-bottom: 10px; }
+        .control-group label { display: block; margin-bottom: 4px; font-size: 0.7rem; color: #888; }
+        .input-row { display: flex; gap: 6px; align-items: center; }
+        input[type="text"], input[type="number"] {
+            flex: 1; background: var(--bg); border: 1px solid var(--axis); color: var(--text);
+            padding: 6px 8px; font-family: inherit; font-size: 0.8rem; border-radius: 2px; outline: none;
+        }
+        input:focus { border-color: var(--accent); }
+        .slider-row { display: flex; align-items: center; gap: 8px; }
+        input[type="range"] { flex: 1; -webkit-appearance: none; background: var(--axis); height: 3px; border-radius: 2px; }
+        input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; background: var(--accent); border-radius: 50%; cursor: pointer; }
+        .val { font-size: 0.8rem; min-width: 60px; text-align: right; color: var(--critical); font-weight: bold; }
+        .buttons { display: flex; gap: 5px; margin: 8px 0; flex-wrap: wrap; }
+        button { 
+            padding: 6px 10px; background: transparent; border: 1px solid var(--accent); 
+            color: var(--accent); font-family: inherit; font-size: 0.7rem; cursor: pointer; border-radius: 2px;
+        }
+        button:hover { background: var(--accent); color: var(--bg); }
+        button.active { background: var(--accent); color: var(--bg); }
+        button.primary { border-color: var(--critical); color: var(--critical); }
+        button.primary:hover { background: var(--critical); color: var(--bg); }
+        .info { font-size: 0.65rem; line-height: 1.5; color: #888; border-top: 1px solid var(--axis); padding-top: 8px; margin-top: 8px; }
+        .info-row { display: flex; justify-content: space-between; }
+        .info-label { color: #666; }
+        .info-value { color: var(--text); }
+        .info-value.ok { color: #7bed9f; font-weight: bold; }
+        .info-value.critical { color: var(--critical); font-weight: bold; }
+        .formula-box { margin-top: 8px; padding: 6px; border: 1px solid var(--axis); border-radius: 4px; font-size: 0.65rem; line-height: 1.6; }
+        .formula-box .highlight { color: var(--critical); }
+    </style>
+</head>
+<body>
+    <h1>RH 幾何学モデル — ABCD構造</h1>
+    <div class="container">
+        <div class="canvas-wrapper">
+            <canvas id="canvas" width="550" height="550"></canvas>
+        </div>
+        <div class="controls">
+            <div class="section-title">パラメータ</div>
+            <div class="control-group">
+                <label>R₀ (A,Bの位置 = ±R₀)</label>
+                <div class="input-row">
+                    <input type="number" id="inp-r0" value="0.5" step="0.01" min="0.1" max="1.5">
+                    <button class="primary" id="btn-set">SET</button>
+                </div>
+            </div>
+            
+            <div class="section-title">C の位置（Y軸上）</div>
+            <div class="control-group">
+                <label>C.y（Dと水平に紐付け）</label>
+                <div class="slider-row">
+                    <input type="range" id="sld-cy" min="-3" max="3" step="0.001" value="0">
+                    <span class="val" id="val-cy">0.000</span>
+                </div>
+            </div>
+            <div class="buttons">
+                <button id="btn-auto" class="active">🔗 自動追従</button>
+                <button id="btn-manual">✋ 手動</button>
+            </div>
+            
+            <div class="section-title">D の回転（B中心）</div>
+            <div class="control-group">
+                <label>回転角 θ</label>
+                <div class="slider-row">
+                    <input type="range" id="sld-theta" min="0" max="6.2832" step="0.001" value="0">
+                    <span class="val" id="val-theta">0°</span>
+                </div>
+            </div>
+            <div class="buttons">
+                <button id="btn-play">▶ 回転</button>
+                <button id="btn-reset">↺ リセット</button>
+                <button id="btn-pi">θ=π</button>
+            </div>
+            
+            <div class="info">
+                <div class="info-row"><span class="info-label">A</span><span class="info-value" id="v-a">—</span></div>
+                <div class="info-row"><span class="info-label">B</span><span class="info-value" id="v-b">—</span></div>
+                <div class="info-row"><span class="info-label">C</span><span class="info-value" id="v-c">—</span></div>
+                <div class="info-row"><span class="info-label">D</span><span class="info-value" id="v-d">—</span></div>
+                <div class="info-row"><span class="info-label">|BD|</span><span class="info-value" id="v-bd">—</span></div>
+                <div class="info-row"><span class="info-label">|CD|</span><span class="info-value" id="v-cd">—</span></div>
+                <div class="info-row"><span class="info-label">D.x</span><span class="info-value" id="v-dx">—</span></div>
+                <div class="info-row"><span class="info-label">D.x = 0 ?</span><span class="info-value" id="v-eq">—</span></div>
+            </div>
+            
+            <div class="formula-box">
+                <div>A = (-R₀, 0), B = (+R₀, 0)</div>
+                <div>C = (0, C.y) — Y軸上</div>
+                <div>D = B + |BD|·e^(-iθ)</div>
+                <div>|BD| = 1 - R₀</div>
+                <div class="highlight">θ=π → D.x = R₀-(1-R₀) = 2R₀-1</div>
+                <div class="highlight">D.x=0 ⟺ R₀=0.5 ★</div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    const CX = W / 2, CY = H / 2;
+    const SCALE = 150;
+    
+    // State
+    let R0 = 0.5;
+    let cY = 0;
+    let theta = 0;
+    let autoMode = true;
+    let playing = false;
+    let lastTime = 0;
+    
+    // DOM
+    const inpR0 = document.getElementById('inp-r0');
+    const btnSet = document.getElementById('btn-set');
+    const sldCy = document.getElementById('sld-cy');
+    const valCy = document.getElementById('val-cy');
+    const sldTheta = document.getElementById('sld-theta');
+    const valTheta = document.getElementById('val-theta');
+    const btnAuto = document.getElementById('btn-auto');
+    const btnManual = document.getElementById('btn-manual');
+    const btnPlay = document.getElementById('btn-play');
+    const btnReset = document.getElementById('btn-reset');
+    const btnPi = document.getElementById('btn-pi');
+    
+    const vA = document.getElementById('v-a');
+    const vB = document.getElementById('v-b');
+    const vC = document.getElementById('v-c');
+    const vD = document.getElementById('v-d');
+    const vBD = document.getElementById('v-bd');
+    const vCD = document.getElementById('v-cd');
+    const vDx = document.getElementById('v-dx');
+    const vEq = document.getElementById('v-eq');
+    
+    // Coordinate transforms
+    function tx(x) { return CX + x * SCALE; }
+    function ty(y) { return CY - y * SCALE; }
+    
+    // Model
+    function getBD(r0) { return Math.abs(1 - r0); }
+    
+    function calcPoints() {
+        const A = { x: -R0, y: 0 };
+        const B = { x: R0, y: 0 };
+        const bd = getBD(R0);
+        const D = { 
+            x: B.x + bd * Math.cos(-theta), 
+            y: B.y + bd * Math.sin(-theta) 
+        };
+        
+        // C: Y軸上、自動モードならD.yに追従
+        if (autoMode) {
+            cY = D.y;
+            sldCy.value = Math.max(-3, Math.min(3, cY));
+            valCy.textContent = cY.toFixed(3);
+        }
+        const C = { x: 0, y: cY };
+        
+        return { A, B, C, D, bd };
+    }
+    
+    function dist(p1, p2) {
+        return Math.sqrt((p1.x - p2.x) ** 2 + (p1.y - p2.y) ** 2);
+    }
+    
+    // Drawing
+    function drawGrid() {
+        ctx.strokeStyle = '#1a1a2e';
+        ctx.lineWidth = 1;
+        for (let i = -2; i <= 2; i += 0.5) {
+            ctx.beginPath(); ctx.moveTo(tx(i), 0); ctx.lineTo(tx(i), H); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(0, ty(i)); ctx.lineTo(W, ty(i)); ctx.stroke();
+        }
+    }
+    
+    function drawAxes() {
+        ctx.strokeStyle = '#3a3a5e';
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(0, CY); ctx.lineTo(W, CY); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(CX, 0); ctx.lineTo(CX, H); ctx.stroke();
+        
+        ctx.fillStyle = '#666';
+        ctx.font = '11px Courier New';
+        ctx.fillText('Re', W - 25, CY - 8);
+        ctx.fillText('Im', CX + 8, 18);
+    }
+    
+    function drawCircle(cx, cy, r, color) {
+        if (r <= 0) return;  // 半径が0以下なら描画しない
+        ctx.beginPath();
+        ctx.arc(tx(cx), ty(cy), r * SCALE, 0, Math.PI * 2);
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 4]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+    }
+    
+    function drawLine(p1, p2, color, width = 2) {
+        ctx.beginPath();
+        ctx.moveTo(tx(p1.x), ty(p1.y));
+        ctx.lineTo(tx(p2.x), ty(p2.y));
+        ctx.strokeStyle = color;
+        ctx.lineWidth = width;
+        ctx.stroke();
+    }
+    
+    function drawDashedLine(p1, p2, color) {
+        ctx.beginPath();
+        ctx.moveTo(tx(p1.x), ty(p1.y));
+        ctx.lineTo(tx(p2.x), ty(p2.y));
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1;
+        ctx.setLineDash([3, 3]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+    }
+    
+    function drawPoint(x, y, color, label, radius = 6) {
+        ctx.beginPath();
+        ctx.arc(tx(x), ty(y), radius, 0, Math.PI * 2);
+        ctx.fillStyle = color;
+        ctx.fill();
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 12px Courier New';
+        ctx.fillText(label, tx(x) + radius + 4, ty(y) - radius);
+    }
+    
+    function draw(timestamp) {
+        // 回転更新
+        if (playing && lastTime) {
+            theta += (timestamp - lastTime) / 1000 * 1.5;
+            theta = theta % (Math.PI * 2);
+            sldTheta.value = theta;
+            valTheta.textContent = (theta * 180 / Math.PI).toFixed(1) + '°';
+        }
+        lastTime = timestamp;
+        
+        // 背景クリア
+        ctx.fillStyle = '#0a0a0f';
+        ctx.fillRect(0, 0, W, H);
+        
+        drawGrid();
+        drawAxes();
+        
+        // 計算
+        const { A, B, C, D, bd } = calcPoints();
+        const cd = dist(C, D);
+        const isEq = Math.abs(D.x) < 0.01;
+        
+        // D の軌道円
+        drawCircle(B.x, B.y, bd, 'rgba(255, 217, 61, 0.25)');
+        
+        // C の水平線（C.y を示す）
+        drawDashedLine({ x: -2, y: C.y }, { x: 2, y: C.y }, 'rgba(168, 85, 247, 0.4)');
+        
+        // D からY軸への垂線
+        if (Math.abs(D.x) > 0.02) {
+            drawDashedLine(D, { x: 0, y: D.y }, 'rgba(255, 217, 61, 0.5)');
+        }
+        
+        // C-D 水平紐付け線
+        drawLine(C, D, 'rgba(168, 85, 247, 0.7)', 2);
+        
+        // A-D, B-D 線
+        drawLine(A, D, '#ff6b35', 2);
+        drawLine(B, D, '#7bed9f', 2);
+        
+        // 均衡ライン（Y軸）ハイライト
+        if (isEq) {
+            ctx.strokeStyle = '#ff3366';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(CX, 0);
+            ctx.lineTo(CX, H);
+            ctx.stroke();
+        }
+        
+        // 点
+        drawPoint(0, 0, '#ff3366', 'O', 4);
+        drawPoint(A.x, A.y, '#ff6b35', 'A', 6);
+        drawPoint(B.x, B.y, '#7bed9f', 'B', 6);
+        drawPoint(C.x, C.y, '#a855f7', 'C', 7);
+        drawPoint(D.x, D.y, isEq ? '#ff3366' : '#ffd93d', 'D', 8);
+        
+        // Y軸上のD.y位置マーク
+        if (Math.abs(D.x) > 0.02) {
+            ctx.beginPath();
+            ctx.arc(tx(0), ty(D.y), 4, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(255, 217, 61, 0.6)';
+            ctx.fill();
+        }
+        
+        // 情報表示
+        ctx.fillStyle = '#00d4ff';
+        ctx.font = '11px Courier New';
+        ctx.textAlign = 'center';
+        ctx.fillText(`R₀=${R0.toFixed(4)}  |BD|=${bd.toFixed(4)}  θ=${(theta*180/Math.PI).toFixed(1)}°`, CX, H - 35);
+        ctx.fillText(`θ=π での D.x = ${(R0 - bd).toFixed(4)} (= 2R₀-1)`, CX, H - 20);
+        
+        const isCritical = Math.abs(R0 - 0.5) < 0.001;
+        ctx.fillStyle = isCritical ? '#ff3366' : '#666';
+        ctx.fillText(isCritical ? '★ R₀=0.5: 臨界値 ★' : `R₀=0.5との差: ${(R0-0.5).toFixed(4)}`, CX, H - 5);
+        
+        // UI更新
+        vA.textContent = `(${A.x.toFixed(3)}, ${A.y.toFixed(3)})`;
+        vB.textContent = `(${B.x.toFixed(3)}, ${B.y.toFixed(3)})`;
+        vC.textContent = `(${C.x.toFixed(3)}, ${C.y.toFixed(3)})`;
+        vD.textContent = `(${D.x.toFixed(3)}, ${D.y.toFixed(3)})`;
+        vBD.textContent = bd.toFixed(4);
+        vCD.textContent = cd.toFixed(4);
+        vDx.textContent = D.x.toFixed(6);
+        vDx.className = 'info-value' + (isEq ? ' critical' : '');
+        vEq.textContent = isEq ? 'YES ★' : 'NO';
+        vEq.className = 'info-value' + (isEq ? ' ok' : '');
+        
+        requestAnimationFrame(draw);
+    }
+    
+    // Events
+    btnSet.onclick = () => {
+        const v = parseFloat(inpR0.value);
+        if (!isNaN(v) && v >= 0.1 && v <= 1.5) {
+            R0 = v;
+        }
+    };
+    
+    inpR0.onkeypress = (e) => { if (e.key === 'Enter') btnSet.click(); };
+    
+    sldCy.oninput = () => {
+        if (!autoMode) {
+            cY = parseFloat(sldCy.value);
+            valCy.textContent = cY.toFixed(3);
+        }
+    };
+    
+    sldTheta.oninput = () => {
+        theta = parseFloat(sldTheta.value);
+        valTheta.textContent = (theta * 180 / Math.PI).toFixed(1) + '°';
+        playing = false;
+        btnPlay.textContent = '▶ 回転';
+        btnPlay.classList.remove('active');
+    };
+    
+    btnAuto.onclick = () => {
+        autoMode = true;
+        btnAuto.classList.add('active');
+        btnManual.classList.remove('active');
+    };
+    
+    btnManual.onclick = () => {
+        autoMode = false;
+        btnManual.classList.add('active');
+        btnAuto.classList.remove('active');
+    };
+    
+    btnPlay.onclick = () => {
+        playing = !playing;
+        btnPlay.textContent = playing ? '⏸ 停止' : '▶ 回転';
+        btnPlay.classList.toggle('active', playing);
+    };
+    
+    btnReset.onclick = () => {
+        theta = 0;
+        cY = 0;
+        sldCy.value = 0;
+        valCy.textContent = '0.000';
+        sldTheta.value = 0;
+        valTheta.textContent = '0°';
+        playing = false;
+        btnPlay.textContent = '▶ 回転';
+        btnPlay.classList.remove('active');
+        autoMode = true;
+        btnAuto.classList.add('active');
+        btnManual.classList.remove('active');
+    };
+    
+    btnPi.onclick = () => {
+        theta = Math.PI;
+        sldTheta.value = Math.PI;
+        valTheta.textContent = '180°';
+        playing = false;
+        btnPlay.textContent = '▶ 回転';
+        btnPlay.classList.remove('active');
+    };
+    
+    // Start
+    requestAnimationFrame(draw);
+    </script>
+</body>
+</html>

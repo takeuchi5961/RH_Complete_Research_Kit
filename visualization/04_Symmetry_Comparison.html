@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>段階的零点探索 - 実用版</title>
+<style>
+body {
+    margin: 0;
+    padding: 20px;
+    background: #000;
+    color: #fff;
+    font-family: monospace;
+}
+.container {
+    max-width: 1400px;
+    margin: 0 auto;
+}
+h2 { color: #0f0; }
+.section {
+    background: #111;
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+}
+.preset-buttons {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+}
+button {
+    padding: 12px 24px;
+    background: #222;
+    color: #0f0;
+    border: 1px solid #0f0;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: bold;
+}
+button:hover { background: #0f0; color: #000; }
+button.active { background: #0f0; color: #000; }
+.result {
+    background: #0a0a0a;
+    padding: 15px;
+    border-left: 3px solid #0f0;
+    margin: 10px 0;
+    border-radius: 4px;
+}
+.warning { border-color: #f80; color: #f80; }
+.error { border-color: #f00; color: #f00; }
+.value { color: #0ff; font-weight: bold; }
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+}
+th, td {
+    padding: 10px;
+    text-align: left;
+    border-bottom: 1px solid #333;
+}
+th { background: #0a0a0a; color: #0f0; }
+.progress {
+    width: 100%;
+    height: 30px;
+    background: #222;
+    border-radius: 4px;
+    overflow: hidden;
+    margin: 10px 0;
+}
+.progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #0a0, #0f0);
+    transition: width 0.3s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #000;
+    font-weight: bold;
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+    <h2>🎯 段階的零点探索システム</h2>
+    
+    <div class="section">
+        <h3>📋 プリセット探索</h3>
+        <div class="preset-buttons">
+            <button onclick="runPreset('coarse')">1️⃣ 粗探索 (±10, dt=0.01)</button>
+            <button onclick="runPreset('medium')">2️⃣ 中探索 (±1, dt=0.001)</button>
+            <button onclick="runPreset('fine')">3️⃣ 精密探索 (±0.1, dt=0.0001)</button>
+            <button onclick="runPreset('ultra')">4️⃣ 超精密 (±0.01, dt=0.00001)</button>
+        </div>
+        
+        <div class="preset-buttons">
+            <button onclick="scanWalls()" style="border-color:#08f; color:#08f;">🧱 壁スキャン (σ=0.49-0.51)</button>
+            <button onclick="exportResults()" style="border-color:#f80; color:#f80;">💾 結果をJSON出力</button>
+        </div>
+    </div>
+    
+    <div class="section" id="status">
+        <h3>⏳ ステータス</h3>
+        <p>プリセットボタンをクリックして探索を開始してください</p>
+    </div>
+    
+    <div class="section" id="results" style="display:none;">
+        <h3>📊 結果</h3>
+        <div id="resultsContent"></div>
+    </div>
+</div>
+
+<script>
+// ζ関数計算
+function zeta(sigma, t, N = 5000) {
+    let eta_re = 0, eta_im = 0;
+    
+    for (let n = 1; n <= N; n++) {
+        const sign = (n % 2 === 1) ? 1 : -1;
+        const logn = Math.log(n);
+        const mag = Math.exp(-sigma * logn);
+        const arg = -t * logn;
+        eta_re += sign * mag * Math.cos(arg);
+        eta_im += sign * mag * Math.sin(arg);
+    }
+    
+    const log2 = Math.log(2);
+    const exp_r = Math.exp((1 - sigma) * log2);
+    const exp_arg = -t * log2;
+    const d_re = 1 - exp_r * Math.cos(exp_arg);
+    const d_im = -exp_r * Math.sin(exp_arg);
+    const d2 = d_re * d_re + d_im * d_im + 1e-300;
+    
+    const re = (eta_re * d_re + eta_im * d_im) / d2;
+    const im = (eta_im * d_re - eta_re * d_im) / d2;
+    
+    return { 
+        re, 
+        im, 
+        abs: Math.sqrt(re*re + im*im)
+    };
+}
+
+let allResults = {};
+
+async function search(sigma, tCenter, tRange, dt, N = 5000) {
+    const data = [];
+    let minAbs = Infinity;
+    let minPoint = null;
+    
+    const steps = Math.floor((2 * tRange) / dt);
+    
+    for (let i = 0; i <= steps; i++) {
+        const t = tCenter - tRange + i * dt;
+        const z = zeta(sigma, t, N);
+        
+        if (z.abs < minAbs) {
+            minAbs = z.abs;
+            minPoint = { t, ...z };
+        }
+        
+        // 進捗表示
+        if (i % 100 === 0) {
+            updateProgress(i, steps);
+            await new Promise(resolve => setTimeout(resolve, 0)); // UI更新
+        }
+    }
+    
+    return { minPoint, totalPoints: steps + 1 };
+}
+
+function updateProgress(current, total) {
+    const percent = (current / total * 100).toFixed(1);
+    const statusDiv = document.getElementById('status');
+    statusDiv.innerHTML = `
+        <h3>⏳ 計算中...</h3>
+        <div class="progress">
+            <div class="progress-bar" style="width:${percent}%">${percent}%</div>
+        </div>
+        <p>${current.toLocaleString()} / ${total.toLocaleString()} 点</p>
+    `;
+}
+
+async function runPreset(type) {
+    const presets = {
+        'coarse': { 
+            tCenter: 14.134725, 
+            tRange: 10, 
+            dt: 0.01, 
+            N: 3000,
+            name: '粗探索'
+        },
+        'medium': { 
+            tCenter: 14.134725, 
+            tRange: 1, 
+            dt: 0.001, 
+            N: 5000,
+            name: '中探索'
+        },
+        'fine': { 
+            tCenter: 14.134725, 
+            tRange: 0.1, 
+            dt: 0.0001, 
+            N: 8000,
+            name: '精密探索'
+        },
+        'ultra': { 
+            tCenter: 14.134725, 
+            tRange: 0.01, 
+            dt: 0.00001, 
+            N: 10000,
+            name: '超精密探索'
+        }
+    };
+    
+    const config = presets[type];
+    const sigma = 0.5;
+    
+    document.getElementById('status').innerHTML = `
+        <h3>🔍 ${config.name}を開始</h3>
+        <p>σ = ${sigma}</p>
+        <p>t中心 = ${config.tCenter}</p>
+        <p>t範囲 = ±${config.tRange}</p>
+        <p>刻み = ${config.dt}</p>
+        <p>項数 = ${config.N}</p>
+    `;
+    
+    const result = await search(sigma, config.tCenter, config.tRange, config.dt, config.N);
+    
+    allResults[type] = {
+        config,
+        result: result.minPoint,
+        totalPoints: result.totalPoints
+    };
+    
+    displayResult(type, config, result);
+}
+
+function displayResult(type, config, result) {
+    document.getElementById('results').style.display = 'block';
+    const content = document.getElementById('resultsContent');
+    
+    const isZero = result.minPoint.abs < 1e-6;
+    const isNear = result.minPoint.abs < 1e-3;
+    
+    let html = `
+        <div class="result ${isZero ? '' : isNear ? 'warning' : 'error'}">
+            <h4>✅ ${config.name}完了</h4>
+            <table>
+                <tr><th>項目</th><th>値</th></tr>
+                <tr><td>計算点数</td><td>${result.totalPoints.toLocaleString()}</td></tr>
+                <tr><td>t位置</td><td class="value">${result.minPoint.t.toFixed(12)}</td></tr>
+                <tr><td>|ζ(0.5+it)|</td><td class="value">${result.minPoint.abs.toExponential(10)}</td></tr>
+                <tr><td>Re(ζ)</td><td class="value">${result.minPoint.re.toExponential(10)}</td></tr>
+                <tr><td>Im(ζ)</td><td class="value">${result.minPoint.im.toExponential(10)}</td></tr>
+            </table>
+    `;
+    
+    if (isZero) {
+        html += `<p style="color:#0f0; font-size:18px; margin-top:10px;">🎯 零点を発見！ |ζ| < 10⁻⁶</p>`;
+    } else if (isNear) {
+        html += `<p style="color:#f80; margin-top:10px;">⚠️ 零点に近い。より精密な探索を推奨。</p>`;
+    } else {
+        html += `<p style="color:#f00; margin-top:10px;">❌ この範囲に零点なし。t中心を調整してください。</p>`;
+    }
+    
+    // 推奨次ステップ
+    if (!isZero && isNear) {
+        html += `
+            <p style="color:#0ff; margin-top:10px;">
+            💡 推奨: t中心を ${result.minPoint.t.toFixed(6)} に設定して、
+            より精密な探索を実行してください。
+            </p>
+        `;
+    }
+    
+    html += `</div>`;
+    
+    content.innerHTML = html + content.innerHTML; // 新しい結果を上に追加
+    
+    document.getElementById('status').innerHTML = `
+        <h3>✅ 完了</h3>
+        <p>次のプリセットを実行するか、結果を確認してください</p>
+    `;
+}
+
+async function scanWalls() {
+    const sigmas = [0.49, 0.495, 0.499, 0.5, 0.501, 0.505, 0.51];
+    const tCenter = 14.134725;
+    const tRange = 0.5;
+    const dt = 0.001;
+    const N = 5000;
+    
+    const results = [];
+    
+    document.getElementById('status').innerHTML = `
+        <h3>🧱 壁スキャン中...</h3>
+        <p>7個のσ値で探索中</p>
+    `;
+    
+    for (let i = 0; i < sigmas.length; i++) {
+        const sigma = sigmas[i];
+        updateProgress(i, sigmas.length);
+        
+        const result = await search(sigma, tCenter, tRange, dt, N);
+        results.push({
+            sigma,
+            min_distance: result.minPoint.abs,
+            t_at_min: result.minPoint.t,
+            re_at_min: result.minPoint.re,
+            im_at_min: result.minPoint.im
+        });
+        
+        await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    
+    allResults['wall_scan'] = results;
+    
+    displayWallResults(results);
+}
+
+function displayWallResults(results) {
+    document.getElementById('results').style.display = 'block';
+    const content = document.getElementById('resultsContent');
+    
+    let html = `
+        <div class="result">
+            <h4>🧱 壁スキャン結果</h4>
+            <table>
+                <tr><th>σ</th><th>最小距離</th><th>t位置</th><th>評価</th></tr>
+    `;
+    
+    for (const r of results) {
+        const isZero = r.min_distance < 1e-6;
+        const isWall = r.min_distance > 0.001;
+        const status = isZero ? '🎯 零点' : isWall ? '🧱 壁' : '⚠️ 弱';
+        const color = isZero ? '#0f0' : isWall ? '#f00' : '#f80';
+        
+        html += `
+            <tr>
+                <td>${r.sigma.toFixed(3)}</td>
+                <td style="color:${color};">${r.min_distance.toExponential(4)}</td>
+                <td>${r.t_at_min.toFixed(8)}</td>
+                <td>${status}</td>
+            </tr>
+        `;
+    }
+    
+    html += `</table>`;
+    
+    // Lean用コード生成
+    const sigma049 = results.find(r => Math.abs(r.sigma - 0.49) < 0.01);
+    const sigma051 = results.find(r => Math.abs(r.sigma - 0.51) < 0.01);
+    const sigma050 = results.find(r => Math.abs(r.sigma - 0.5) < 0.01);
+    
+    html += `
+        <h4 style="margin-top:20px;">📝 Lean 4 コード</h4>
+        <pre style="background:#0a0a0a; padding:15px; border-radius:4px; overflow-x:auto; color:#0f0;">
+axiom wall_sigma_051 : ∀ t : ℝ, ‖ζ ⟨0.51, t⟩‖ ≥ ${sigma051.min_distance.toFixed(10)}
+axiom wall_sigma_049 : ∀ t : ℝ, ‖ζ ⟨0.49, t⟩‖ ≥ ${sigma049.min_distance.toFixed(10)}
+
+theorem critical_line_contains_zero :
+  ∃ t : ℝ, ζ ⟨1/2, t⟩ = 0 := by
+  use ${sigma050.t_at_min.toFixed(12)}
+  -- |ζ| = ${sigma050.min_distance.toExponential(6)}
+  sorry</pre>
+    `;
+    
+    html += `</div>`;
+    
+    content.innerHTML = html + content.innerHTML;
+    
+    document.getElementById('status').innerHTML = `
+        <h3>✅ 壁スキャン完了</h3>
+        <p>結果を確認して、JSONエクスポートしてください</p>
+    `;
+}
+
+function exportResults() {
+    if (Object.keys(allResults).length === 0) {
+        alert('まず探索を実行してください');
+        return;
+    }
+    
+    const json = JSON.stringify(allResults, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'riemann_zero_search_results.json';
+    a.click();
+    
+    alert('結果をJSONファイルとして保存しました');
+}
+
+// 初期メッセージ
+document.getElementById('status').innerHTML = `
+    <h3>💡 使い方</h3>
+    <ol style="line-height:1.8;">
+        <li><strong>1️⃣ 粗探索</strong>から順番に実行することを推奨</li>
+        <li>各ステップで零点の大まかな位置を絞り込む</li>
+        <li>最終的に<strong>4️⃣ 超精密</strong>で正確な値を得る</li>
+        <li><strong>🧱 壁スキャン</strong>でσ≠0.5での下限を確認</li>
+        <li><strong>💾 結果をJSON出力</strong>でデータを保存</li>
+    </ol>
+    <p style="color:#0ff; margin-top:15px;">
+    ⚡ ヒント: 前のステップで見つけたt位置を使って、
+    HTMLの tCenter 値を書き換えると、より正確に探索できます。
+    </p>
+`;
+</script>
+
+</body>
+</html>

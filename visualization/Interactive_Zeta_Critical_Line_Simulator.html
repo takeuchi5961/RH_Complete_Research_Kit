@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>ζ(s) 複素平面グラフ</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: #0a0a0f;
+  color: #e0e0e0;
+  font-family: 'Consolas', monospace;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+h1 { color: #4ecd84; margin-bottom: 10px; }
+.subtitle { color: #888; margin-bottom: 20px; text-align: center; line-height: 1.6; }
+.controls {
+  display: flex;
+  gap: 15px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+label { color: #888; }
+input, select {
+  padding: 8px;
+  background: #1a1a24;
+  border: 1px solid #3a3a4a;
+  border-radius: 4px;
+  color: #fff;
+  width: 90px;
+}
+button {
+  padding: 12px 24px;
+  background: linear-gradient(135deg, #4ecd84, #2a8a5a);
+  border: none;
+  border-radius: 6px;
+  color: #fff;
+  font-size: 16px;
+  cursor: pointer;
+}
+button:hover { transform: translateY(-2px); }
+button.stop { background: linear-gradient(135deg, #ff6b6b, #aa4444); }
+button.reset { background: linear-gradient(135deg, #888, #555); }
+button.record { background: linear-gradient(135deg, #ffcc00, #cc9900); color: #000; }
+button.export { background: linear-gradient(135deg, #66ccff, #3399cc); }
+.canvas-container {
+  position: relative;
+  width: 900px;
+  height: 900px;
+  background: #fff;
+  border-radius: 12px;
+}
+canvas { position: absolute; top: 0; left: 0; }
+.info {
+  width: 100%;
+  max-width: 900px;
+  margin-top: 20px;
+  padding: 20px;
+  background: #12121a;
+  border-radius: 8px;
+  display: flex;
+  gap: 15px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.info-box {
+  padding: 12px;
+  background: #1a1a24;
+  border-radius: 8px;
+  min-width: 130px;
+  text-align: center;
+}
+.info-title { font-size: 11px; color: #888; margin-bottom: 6px; }
+.info-value { font-size: 18px; font-weight: bold; }
+.zero-flash {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(255, 215, 0, 0.4);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.zero-flash.active { opacity: 1; }
+
+/* 記録テーブル */
+.record-section {
+  width: 100%;
+  max-width: 900px;
+  margin-top: 20px;
+  padding: 20px;
+  background: #12121a;
+  border-radius: 8px;
+}
+.record-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+}
+.record-header h3 { color: #ffcc00; }
+.record-count { color: #888; font-size: 14px; }
+.record-table-container {
+  max-height: 300px;
+  overflow-y: auto;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+th, td {
+  padding: 8px 12px;
+  text-align: right;
+  border-bottom: 1px solid #2a2a3a;
+}
+th {
+  background: #1a1a24;
+  color: #4ecd84;
+  position: sticky;
+  top: 0;
+}
+td { color: #e0e0e0; }
+tr:hover td { background: #1a1a24; }
+.col-t { color: #cc66ff; }
+.col-im { color: #ffcc00; }
+.col-dist { color: #ff8800; }
+.col-abs { color: #ff4444; }
+</style>
+</head>
+<body>
+
+<div class="zero-flash" id="zeroFlash"></div>
+
+<h1>ζ(s) 複素平面グラフ</h1>
+<p class="subtitle">
+  <strong>s = σ + it</strong> に対する <strong>ζ(s) = Re + i·Im</strong> の軌跡<br>
+  σ=0.5 固定、t を変化させて複素平面上に描画
+</p>
+
+<div class="controls">
+  <div><label>σ:</label>
+    <select id="sigma">
+      <option value="0.3">0.3</option>
+      <option value="0.4">0.4</option>
+      <option value="0.49">0.49</option>
+      <option value="0.5" selected>0.5（臨界線）</option>
+      <option value="0.51">0.51</option>
+      <option value="0.6">0.6</option>
+    </select>
+  </div>
+  <div><label>t 開始:</label>
+    <input type="number" id="tStart" value="10" step="1">
+  </div>
+  <div><label>t 終了:</label>
+    <input type="number" id="tEnd" value="50" step="1">
+  </div>
+  <div><label>速度:</label>
+    <input type="range" id="speed" min="1" max="50" value="15">
+  </div>
+  <button onclick="startAnimation()">▶ 再生</button>
+  <button onclick="stopAnimation()" class="stop">■ 停止</button>
+  <button onclick="resetAnimation()" class="reset">↺ リセット</button>
+</div>
+
+<div class="controls">
+  <div><label>記録間隔Δt:</label>
+    <input type="number" id="recordInterval" value="0.5" step="0.1" style="width:70px;">
+  </div>
+  <button onclick="toggleAutoRecord()" class="record" id="autoRecordBtn">● 自動記録 OFF</button>
+  <button onclick="recordCurrent()" class="record">＋ 現在値記録</button>
+  <button onclick="exportCSV()" class="export">⬇ CSV出力</button>
+  <button onclick="clearRecords()" class="reset">記録クリア</button>
+</div>
+
+<div class="canvas-container">
+  <canvas id="canvas"></canvas>
+</div>
+
+<div class="info">
+  <div class="info-box">
+    <div class="info-title">t（虚部）</div>
+    <div class="info-value" style="color:#cc66ff;" id="tVal">10.000</div>
+  </div>
+  <div class="info-box">
+    <div class="info-title">Re(ζ)</div>
+    <div class="info-value" style="color:#ff4444;" id="reVal">0.000</div>
+  </div>
+  <div class="info-box">
+    <div class="info-title">Im(ζ) [Y軸位置]</div>
+    <div class="info-value" style="color:#ffcc00;" id="imVal">0.000</div>
+  </div>
+  <div class="info-box">
+    <div class="info-title">|Re(ζ)| [水平距離]</div>
+    <div class="info-value" style="color:#ff8800;" id="distVal">0.000</div>
+  </div>
+  <div class="info-box">
+    <div class="info-title">|ζ|</div>
+    <div class="info-value" style="color:#ff4444;" id="absVal">0.000</div>
+  </div>
+  <div class="info-box">
+    <div class="info-title">arg(ζ)</div>
+    <div class="info-value" style="color:#00cc88;" id="argVal">0°</div>
+  </div>
+  <div class="info-box">
+    <div class="info-title">状態</div>
+    <div class="info-value" id="stateVal">—</div>
+  </div>
+</div>
+
+<!-- 記録テーブル -->
+<div class="record-section">
+  <div class="record-header">
+    <h3>📊 Y軸記録・距離データ</h3>
+    <span class="record-count" id="recordCount">記録数: 0</span>
+  </div>
+  <div class="record-table-container">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>t</th>
+          <th>Im(ζ) [Y軸]</th>
+          <th>|Re(ζ)| [距離]</th>
+          <th>|ζ|</th>
+          <th>符号(Re)</th>
+        </tr>
+      </thead>
+      <tbody id="recordBody">
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const DPR = window.devicePixelRatio || 1;
+
+canvas.width = 900 * DPR;
+canvas.height = 900 * DPR;
+canvas.style.width = '900px';
+canvas.style.height = '900px';
+ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+
+const W = 900, H = 900;
+const cx = W / 2, cy = H / 2;
+
+let animationId = null;
+let currentT = 10;
+let trail = [];
+let zeroCount = 0;
+
+// 記録データ
+let records = [];
+let autoRecord = false;
+let lastRecordT = -Infinity;
+
+// ディリクレη級数法でζ(s)を計算
+function zeta(sigma, t, N = 3000) {
+  let eta_re = 0, eta_im = 0;
+  for (let n = 1; n <= N; n++) {
+    const sign = (n % 2 === 1) ? 1 : -1;
+    const logn = Math.log(n);
+    const mag = Math.exp(-sigma * logn);
+    const arg = -t * logn;
+    eta_re += sign * mag * Math.cos(arg);
+    eta_im += sign * mag * Math.sin(arg);
+  }
+  
+  const log2 = Math.log(2);
+  const exp_r = Math.exp((1 - sigma) * log2);
+  const exp_arg = -t * log2;
+  const d_re = 1 - exp_r * Math.cos(exp_arg);
+  const d_im = -exp_r * Math.sin(exp_arg);
+  const d2 = d_re * d_re + d_im * d_im + 1e-300;
+  
+  const re = (eta_re * d_re + eta_im * d_im) / d2;
+  const im = (eta_im * d_re - eta_re * d_im) / d2;
+  
+  return { re, im };
+}
+
+// 記録追加
+function addRecord(t, z) {
+  const absZ = Math.sqrt(z.re * z.re + z.im * z.im);
+  const dist = Math.abs(z.re);
+  const sign = z.re >= 0 ? '+' : '-';
+  
+  records.push({
+    t: t,
+    im: z.im,
+    dist: dist,
+    abs: absZ,
+    sign: sign
+  });
+  
+  updateRecordTable();
+}
+
+// テーブル更新
+function updateRecordTable() {
+  const tbody = document.getElementById('recordBody');
+  tbody.innerHTML = '';
+  
+  records.forEach((r, i) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${i + 1}</td>
+      <td class="col-t">${r.t.toFixed(4)}</td>
+      <td class="col-im">${r.im.toFixed(6)}</td>
+      <td class="col-dist">${r.dist.toFixed(6)}</td>
+      <td class="col-abs">${r.abs.toFixed(6)}</td>
+      <td>${r.sign}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+  
+  document.getElementById('recordCount').textContent = `記録数: ${records.length}`;
+  
+  // 最新行にスクロール
+  const container = document.querySelector('.record-table-container');
+  container.scrollTop = container.scrollHeight;
+}
+
+// 現在値を記録
+function recordCurrent() {
+  const sigma = parseFloat(document.getElementById('sigma').value);
+  const z = zeta(sigma, currentT);
+  addRecord(currentT, z);
+}
+
+// 自動記録トグル
+function toggleAutoRecord() {
+  autoRecord = !autoRecord;
+  const btn = document.getElementById('autoRecordBtn');
+  if (autoRecord) {
+    btn.textContent = '● 自動記録 ON';
+    btn.style.background = 'linear-gradient(135deg, #ff6b6b, #cc4444)';
+  } else {
+    btn.textContent = '● 自動記録 OFF';
+    btn.style.background = 'linear-gradient(135deg, #ffcc00, #cc9900)';
+  }
+}
+
+// CSV出力
+function exportCSV() {
+  if (records.length === 0) {
+    alert('記録データがありません');
+    return;
+  }
+  
+  const sigma = document.getElementById('sigma').value;
+  let csv = 'No,t,Im(zeta),|Re(zeta)|_distance,|zeta|,Re_sign\n';
+  records.forEach((r, i) => {
+    csv += `${i+1},${r.t},${r.im},${r.dist},${r.abs},${r.sign}\n`;
+  });
+  
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `zeta_yaxis_record_sigma${sigma}_${Date.now()}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// 記録クリア
+function clearRecords() {
+  if (records.length > 0 && !confirm('記録をすべて削除しますか？')) return;
+  records = [];
+  lastRecordT = -Infinity;
+  updateRecordTable();
+}
+
+function resetAnimation() {
+  stopAnimation();
+  currentT = parseFloat(document.getElementById('tStart').value);
+  trail = [];
+  zeroCount = 0;
+  lastRecordT = -Infinity;
+  drawFrame();
+}
+
+function drawFrame() {
+  const sigma = parseFloat(document.getElementById('sigma').value);
+  const tEnd = parseFloat(document.getElementById('tEnd').value);
+  
+  // ζ(s)を計算
+  const z = zeta(sigma, currentT);
+  const absZ = Math.sqrt(z.re * z.re + z.im * z.im);
+  const argZ = Math.atan2(z.im, z.re) * 180 / Math.PI;
+  const dist = Math.abs(z.re);
+  
+  // 自動記録
+  if (autoRecord) {
+    const interval = parseFloat(document.getElementById('recordInterval').value);
+    if (currentT - lastRecordT >= interval) {
+      addRecord(currentT, z);
+      lastRecordT = currentT;
+    }
+  }
+  
+  // スケール（自動調整）
+  let maxVal = 2;
+  for (const p of trail) {
+    maxVal = Math.max(maxVal, Math.abs(p.re), Math.abs(p.im));
+  }
+  maxVal = Math.max(maxVal, Math.abs(z.re), Math.abs(z.im)) * 1.2;
+  const scale = (Math.min(W, H) / 2 - 80) / maxVal;
+  
+  // 軌跡に追加
+  trail.push({ t: currentT, re: z.re, im: z.im, abs: absZ });
+  
+  // 白背景
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, W, H);
+  
+  // グリッド
+  ctx.strokeStyle = '#e8e8e8';
+  ctx.lineWidth = 1;
+  const gridStep = maxVal / 5;
+  for (let v = -maxVal; v <= maxVal; v += gridStep) {
+    ctx.beginPath();
+    ctx.moveTo(cx + v * scale, 0);
+    ctx.lineTo(cx + v * scale, H);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(0, cy - v * scale);
+    ctx.lineTo(W, cy - v * scale);
+    ctx.stroke();
+  }
+  
+  // Re軸（赤）
+  ctx.strokeStyle = '#ff4444';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(0, cy);
+  ctx.lineTo(W, cy);
+  ctx.stroke();
+  
+  // Im軸（青）
+  ctx.strokeStyle = '#4444ff';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(cx, 0);
+  ctx.lineTo(cx, H);
+  ctx.stroke();
+  
+  // 軸ラベル
+  ctx.font = 'bold 18px sans-serif';
+  ctx.fillStyle = '#ff4444';
+  ctx.textAlign = 'left';
+  ctx.fillText('Re(ζ)', W - 70, cy - 15);
+  ctx.fillStyle = '#4444ff';
+  ctx.fillText('Im(ζ)', cx + 15, 30);
+  
+  // 目盛り
+  ctx.font = '12px monospace';
+  ctx.fillStyle = '#888';
+  ctx.textAlign = 'center';
+  for (let v = -maxVal; v <= maxVal; v += gridStep) {
+    if (Math.abs(v) > 0.01) {
+      ctx.fillText(v.toFixed(1), cx + v * scale, cy + 20);
+      ctx.fillText(v.toFixed(1), cx - 30, cy - v * scale + 5);
+    }
+  }
+  
+  // 軌跡を描画
+  if (trail.length > 1) {
+    for (let i = 1; i < trail.length; i++) {
+      const alpha = 0.3 + 0.7 * (i / trail.length);
+      ctx.strokeStyle = `rgba(255, 100, 50, ${alpha})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(cx + trail[i-1].re * scale, cy - trail[i-1].im * scale);
+      ctx.lineTo(cx + trail[i].re * scale, cy - trail[i].im * scale);
+      ctx.stroke();
+    }
+  }
+  
+  // 現在のζ点
+  const zetaX = cx + z.re * scale;
+  const zetaY = cy - z.im * scale;
+  
+  // |ζ|円（原点中心）
+  ctx.strokeStyle = 'rgba(255, 136, 0, 0.4)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(cx, cy, absZ * scale, 0, Math.PI * 2);
+  ctx.stroke();
+  
+  // 基準点
+  const reBaseX = cx + z.re * scale;
+  const reBaseY = cy;
+  const imBaseX = cx;
+  const imBaseY = cy - z.im * scale;
+  
+  // Re基準点からζ点への垂直線
+  ctx.strokeStyle = 'rgba(68, 68, 255, 0.5)';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([5, 5]);
+  ctx.beginPath();
+  ctx.moveTo(reBaseX, reBaseY);
+  ctx.lineTo(zetaX, zetaY);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  
+  // ★★★ Y軸からζ点への水平距離線（強調表示）★★★
+  ctx.strokeStyle = '#ff8800';
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(imBaseX, imBaseY);
+  ctx.lineTo(zetaX, zetaY);
+  ctx.stroke();
+  
+  // 距離ラベル
+  const midX = (imBaseX + zetaX) / 2;
+  const midY = imBaseY - 15;
+  ctx.fillStyle = '#ff8800';
+  ctx.font = 'bold 14px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText(`d=${dist.toFixed(3)}`, midX, midY);
+  
+  // 原点からζ点へのベクトル
+  ctx.strokeStyle = '#333';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.lineTo(zetaX, zetaY);
+  ctx.stroke();
+  
+  // 原点
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  ctx.arc(cx, cy, 8, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 12px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('0', cx, cy + 4);
+  
+  // Re基準点（緑◎）
+  ctx.fillStyle = '#4ecd84';
+  ctx.beginPath();
+  ctx.arc(reBaseX, reBaseY, 10, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Im基準点（黄◎）- Y軸上
+  ctx.fillStyle = '#ffcc00';
+  ctx.beginPath();
+  ctx.arc(imBaseX, imBaseY, 12, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#000';
+  ctx.font = 'bold 10px sans-serif';
+  ctx.fillText('Yi', imBaseX, imBaseY + 3);
+  
+  // ζ点（赤◎）
+  ctx.fillStyle = '#ff0000';
+  ctx.beginPath();
+  ctx.arc(zetaX, zetaY, 14, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 11px sans-serif';
+  ctx.fillText('ζ', zetaX, zetaY + 4);
+  
+  // 角度弧
+  if (absZ * scale > 30) {
+    ctx.strokeStyle = '#00cc88';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    const arcR = Math.min(50, absZ * scale * 0.4);
+    const startAngle = 0;
+    const endAngle = -Math.atan2(z.im, z.re);
+    ctx.arc(cx, cy, arcR, startAngle, endAngle, z.im > 0);
+    ctx.stroke();
+  }
+  
+  // 情報テキスト
+  ctx.fillStyle = '#333';
+  ctx.font = '14px monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText(`s = ${sigma} + ${currentT.toFixed(2)}i`, 20, 30);
+  ctx.fillText(`ζ(s) = ${z.re.toFixed(4)} + ${z.im.toFixed(4)}i`, 20, 50);
+  
+  // 零点検出
+  const isZero = absZ < 0.05;
+  
+  if (isZero) {
+    ctx.strokeStyle = '#ffd700';
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 40, 0, Math.PI * 2);
+    ctx.stroke();
+    
+    ctx.fillStyle = '#ffd700';
+    ctx.font = 'bold 24px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('零点！ t ≈ ' + currentT.toFixed(2), cx, cy - 60);
+    
+    document.getElementById('zeroFlash').classList.add('active');
+    setTimeout(() => {
+      document.getElementById('zeroFlash').classList.remove('active');
+    }, 150);
+  }
+  
+  ctx.textAlign = 'left';
+  
+  // 情報更新
+  document.getElementById('tVal').textContent = currentT.toFixed(3);
+  document.getElementById('reVal').textContent = z.re.toFixed(4);
+  document.getElementById('imVal').textContent = z.im.toFixed(4);
+  document.getElementById('distVal').textContent = dist.toFixed(4);
+  document.getElementById('absVal').textContent = absZ.toFixed(4);
+  document.getElementById('argVal').textContent = argZ.toFixed(1) + '°';
+  
+  const stateEl = document.getElementById('stateVal');
+  if (isZero) {
+    stateEl.textContent = '★零点★';
+    stateEl.style.color = '#ffd700';
+  } else if (z.im < 0) {
+    stateEl.textContent = 'Im < 0';
+    stateEl.style.color = '#ff6b6b';
+  } else {
+    stateEl.textContent = 'Im > 0';
+    stateEl.style.color = '#4ecdc4';
+  }
+}
+
+function startAnimation() {
+  stopAnimation();
+  
+  const speed = parseInt(document.getElementById('speed').value) / 500;
+  const tEnd = parseFloat(document.getElementById('tEnd').value);
+  
+  function step() {
+    currentT += speed;
+    
+    if (currentT > tEnd) {
+      currentT = parseFloat(document.getElementById('tStart').value);
+      trail = [];
+      lastRecordT = -Infinity;
+    }
+    
+    drawFrame();
+    animationId = requestAnimationFrame(step);
+  }
+  
+  step();
+}
+
+function stopAnimation() {
+  if (animationId) {
+    cancelAnimationFrame(animationId);
+    animationId = null;
+  }
+}
+
+// 初期表示
+resetAnimation();
+</script>
+
+</body>
+</html>

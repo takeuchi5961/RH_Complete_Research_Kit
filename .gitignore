@@ -1,0 +1,15 @@
+# Lean ビルド成果物
+.lake/
+lake-packages/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# ログ
+*.log
+
+# OS
+.DS_Store
+Thumbs.db

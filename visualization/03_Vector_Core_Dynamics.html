@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>ζベクトルの回転と収縮</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: #0a0a0f;
+  color: #e0e0e0;
+  font-family: 'Consolas', monospace;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+h1 { color: #4ecd84; margin-bottom: 10px; }
+.subtitle { color: #888; margin-bottom: 20px; text-align: center; }
+.controls {
+  display: flex;
+  gap: 15px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+}
+label { color: #888; }
+input, select {
+  padding: 8px;
+  background: #1a1a24;
+  border: 1px solid #3a3a4a;
+  border-radius: 4px;
+  color: #fff;
+  width: 80px;
+}
+button {
+  padding: 10px 20px;
+  background: linear-gradient(135deg, #4ecd84, #2a8a5a);
+  border: none;
+  border-radius: 6px;
+  color: #fff;
+  font-size: 16px;
+  cursor: pointer;
+}
+button:hover { transform: translateY(-2px); }
+button.stop { background: linear-gradient(135deg, #ff6b6b, #aa4444); }
+.main {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.canvas-container {
+  position: relative;
+  width: 650px;
+  height: 650px;
+  background: #08080c;
+  border-radius: 12px;
+  border: 1px solid #2a2a3a;
+}
+canvas { position: absolute; top: 0; left: 0; }
+.info {
+  width: 280px;
+  padding: 15px;
+  background: #12121a;
+  border-radius: 8px;
+  border: 1px solid #2a2a3a;
+}
+.info h3 { color: #4ecdc4; margin-bottom: 10px; border-bottom: 1px solid #2a2a3a; padding-bottom: 5px; }
+.stat { margin: 8px 0; }
+.stat-label { color: #888; font-size: 12px; }
+.stat-value { color: #4ecd84; font-size: 20px; font-weight: bold; }
+.stat-value.warning { color: #ff6b6b; }
+.angle-display {
+  margin: 15px 0;
+  padding: 15px;
+  background: #1a1a24;
+  border-radius: 8px;
+  text-align: center;
+}
+.angle-value {
+  font-size: 36px;
+  color: #ffcc00;
+  font-weight: bold;
+}
+.angle-label { color: #888; font-size: 12px; }
+.rotation-indicator {
+  width: 100%;
+  height: 8px;
+  background: #2a2a3a;
+  border-radius: 4px;
+  margin-top: 10px;
+  overflow: hidden;
+}
+.rotation-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #4ecd84, #ffcc00, #ff6b6b);
+  transition: width 0.05s;
+}
+.zero-alert {
+  margin-top: 15px;
+  padding: 15px;
+  background: #2a1a1a;
+  border: 2px solid #ff6b6b;
+  border-radius: 8px;
+  color: #ff6b6b;
+  text-align: center;
+  font-size: 18px;
+  display: none;
+}
+.zero-alert.active { display: block; animation: pulse 0.5s infinite; }
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+</style>
+</head>
+<body>
+
+<h1>ζ(σ+it) ベクトルの回転と収縮</h1>
+<p class="subtitle">零点 = ベクトルが原点で消滅し、180°反転して再出現</p>
+
+<div class="controls">
+  <div><label>σ:</label>
+    <select id="sigma">
+      <option value="0.3">0.3</option>
+      <option value="0.4">0.4</option>
+      <option value="0.49">0.49</option>
+      <option value="0.5" selected>0.5</option>
+      <option value="0.51">0.51</option>
+      <option value="0.6">0.6</option>
+    </select>
+  </div>
+  <div><label>t中心:</label>
+    <input type="number" id="tCenter" value="14.134" step="0.001">
+  </div>
+  <div><label>範囲±:</label>
+    <input type="number" id="tRange" value="0.3" step="0.1">
+  </div>
+  <div><label>速度:</label>
+    <input type="range" id="speed" min="1" max="10" value="3">
+  </div>
+  <button onclick="startAnimation()">▶ 再生</button>
+  <button onclick="stopAnimation()" class="stop">■ 停止</button>
+  <button onclick="stepBackward()">◀</button>
+  <button onclick="stepForward()">▶</button>
+</div>
+
+<div class="main">
+  <div class="canvas-container">
+    <canvas id="canvas"></canvas>
+  </div>
+  
+  <div class="info">
+    <h3>ベクトル状態</h3>
+    
+    <div class="angle-display">
+      <div class="angle-label">角度 arg(ζ)</div>
+      <div class="angle-value" id="angleValue">0°</div>
+      <div class="rotation-indicator">
+        <div class="rotation-bar" id="rotationBar"></div>
+      </div>
+    </div>
+    
+    <div class="stat">
+      <div class="stat-label">t</div>
+      <div class="stat-value" id="statT">—</div>
+    </div>
+    
+    <div class="stat">
+      <div class="stat-label">|ζ| (ベクトル長)</div>
+      <div class="stat-value" id="statAbs">—</div>
+    </div>
+    
+    <div class="stat">
+      <div class="stat-label">Re(ζ)</div>
+      <div class="stat-value" id="statRe">—</div>
+    </div>
+    
+    <div class="stat">
+      <div class="stat-label">Im(ζ)</div>
+      <div class="stat-value" id="statIm">—</div>
+    </div>
+    
+    <div class="stat">
+      <div class="stat-label">角速度 dθ/dt</div>
+      <div class="stat-value" id="statOmega">—</div>
+    </div>
+    
+    <div class="zero-alert" id="zeroAlert">
+      ⚡ 零点通過！<br>
+      180°反転
+    </div>
+    
+    <div style="margin-top:15px; padding:10px; background:#1a1a2a; border-radius:6px; font-size:12px; color:#888;">
+      <div>緑線 = 現在のベクトル</div>
+      <div>黄色弧 = 角度</div>
+      <div>青線 = 軌跡</div>
+      <div>赤点 = 原点（零点）</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const DPR = window.devicePixelRatio || 1;
+
+canvas.width = 650 * DPR;
+canvas.height = 650 * DPR;
+canvas.style.width = '650px';
+canvas.style.height = '650px';
+ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+
+const W = 650, H = 650;
+const cx = W / 2, cy = H / 2;
+
+let animationId = null;
+let data = [];
+let frame = 0;
+
+function zeta(sigma, t, N = 5000) {
+  let eta_re = 0, eta_im = 0;
+  for (let n = 1; n <= N; n++) {
+    const sign = (n % 2 === 1) ? 1 : -1;
+    const logn = Math.log(n);
+    const mag = Math.exp(-sigma * logn);
+    const arg = -t * logn;
+    eta_re += sign * mag * Math.cos(arg);
+    eta_im += sign * mag * Math.sin(arg);
+  }
+  
+  const log2 = Math.log(2);
+  const exp_r = Math.exp((1 - sigma) * log2);
+  const exp_arg = -t * log2;
+  const d_re = 1 - exp_r * Math.cos(exp_arg);
+  const d_im = -exp_r * Math.sin(exp_arg);
+  const d2 = d_re * d_re + d_im * d_im + 1e-300;
+  
+  const re = (eta_re * d_re + eta_im * d_im) / d2;
+  const im = (eta_im * d_re - eta_re * d_im) / d2;
+  const abs = Math.sqrt(re*re + im*im);
+  const arg = Math.atan2(im, re);
+  
+  return { re, im, abs, arg, argDeg: arg * 180 / Math.PI };
+}
+
+function collectData() {
+  const sigma = parseFloat(document.getElementById('sigma').value);
+  const tCenter = parseFloat(document.getElementById('tCenter').value);
+  const tRange = parseFloat(document.getElementById('tRange').value);
+  
+  data = [];
+  const dt = 0.001;
+  let prevArg = null;
+  let cumArg = 0;
+  
+  for (let t = tCenter - tRange; t <= tCenter + tRange; t += dt) {
+    const z = zeta(sigma, t);
+    
+    // 累積角度（連続化）
+    if (prevArg !== null) {
+      let dArg = z.arg - prevArg;
+      if (dArg > Math.PI) dArg -= 2 * Math.PI;
+      if (dArg < -Math.PI) dArg += 2 * Math.PI;
+      cumArg += dArg;
+    }
+    prevArg = z.arg;
+    
+    data.push({ 
+      t, 
+      ...z, 
+      cumArg,
+      cumArgDeg: cumArg * 180 / Math.PI,
+      omega: 0 
+    });
+  }
+  
+  // 角速度計算
+  for (let i = 1; i < data.length - 1; i++) {
+    data[i].omega = (data[i+1].cumArgDeg - data[i-1].cumArgDeg) / (2 * dt);
+  }
+  
+  return data;
+}
+
+function drawFrame(idx) {
+  const d = data[idx];
+  const sigma = parseFloat(document.getElementById('sigma').value);
+  
+  // スケール
+  const maxAbs = Math.max(...data.map(x => x.abs));
+  const scale = (Math.min(W, H) / 2 - 100) / maxAbs;
+  
+  ctx.fillStyle = '#08080c';
+  ctx.fillRect(0, 0, W, H);
+  
+  // 同心円グリッド
+  ctx.strokeStyle = '#1a1a2a';
+  ctx.lineWidth = 1;
+  for (let r = 0.2; r <= 1; r += 0.2) {
+    ctx.beginPath();
+    ctx.arc(cx, cy, r * maxAbs * scale, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  
+  // 角度グリッド（放射線）
+  ctx.strokeStyle = '#1a1a2a';
+  for (let a = 0; a < 360; a += 30) {
+    const rad = a * Math.PI / 180;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + 300 * Math.cos(rad), cy - 300 * Math.sin(rad));
+    ctx.stroke();
+  }
+  
+  // 軸
+  ctx.strokeStyle = '#3a3a4a';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(0, cy);
+  ctx.lineTo(W, cy);
+  ctx.moveTo(cx, 0);
+  ctx.lineTo(cx, H);
+  ctx.stroke();
+  
+  // 軸ラベル
+  ctx.fillStyle = '#666';
+  ctx.font = '16px sans-serif';
+  ctx.fillText('+Re', W - 40, cy - 10);
+  ctx.fillText('-Re', 10, cy - 10);
+  ctx.fillText('+Im', cx + 10, 25);
+  ctx.fillText('-Im', cx + 10, H - 10);
+  
+  // 角度目盛り
+  ctx.fillStyle = '#444';
+  ctx.font = '12px sans-serif';
+  const angles = [0, 90, 180, -90];
+  const labels = ['0°', '90°', '±180°', '-90°'];
+  for (let i = 0; i < angles.length; i++) {
+    const rad = angles[i] * Math.PI / 180;
+    const lx = cx + 280 * Math.cos(rad);
+    const ly = cy - 280 * Math.sin(rad);
+    ctx.fillText(labels[i], lx - 15, ly + 5);
+  }
+  
+  // 軌跡（過去）
+  ctx.strokeStyle = 'rgba(78, 205, 196, 0.4)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (let i = 0; i <= idx; i++) {
+    const x = cx + data[i].re * scale;
+    const y = cy - data[i].im * scale;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+  
+  // 軌跡（未来、薄く）
+  ctx.strokeStyle = 'rgba(78, 205, 196, 0.15)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let i = idx; i < data.length; i++) {
+    const x = cx + data[i].re * scale;
+    const y = cy - data[i].im * scale;
+    if (i === idx) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+  
+  // 原点
+  ctx.fillStyle = '#ff6b6b';
+  ctx.beginPath();
+  ctx.arc(cx, cy, 12, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 14px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('O', cx, cy + 5);
+  ctx.textAlign = 'left';
+  
+  // 現在位置
+  const x = cx + d.re * scale;
+  const y = cy - d.im * scale;
+  
+  // 角度を弧で表示
+  const arcRadius = Math.min(60, d.abs * scale * 0.5);
+  if (arcRadius > 10) {
+    ctx.strokeStyle = '#ffcc00';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    if (d.arg >= 0) {
+      ctx.arc(cx, cy, arcRadius, 0, -d.arg, true);
+    } else {
+      ctx.arc(cx, cy, arcRadius, 0, -d.arg, false);
+    }
+    ctx.stroke();
+    
+    // 角度ラベル
+    const labelAngle = -d.arg / 2;
+    const lx = cx + (arcRadius + 20) * Math.cos(labelAngle);
+    const ly = cy + (arcRadius + 20) * Math.sin(labelAngle);
+    ctx.fillStyle = '#ffcc00';
+    ctx.font = '14px sans-serif';
+    ctx.fillText(`${d.argDeg.toFixed(1)}°`, lx, ly);
+  }
+  
+  // |ζ| 円
+  ctx.strokeStyle = 'rgba(78, 205, 132, 0.3)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([5, 5]);
+  ctx.beginPath();
+  ctx.arc(cx, cy, d.abs * scale, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  
+  // ベクトル
+  ctx.strokeStyle = '#4ecd84';
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.lineTo(x, y);
+  ctx.stroke();
+  
+  // ベクトル先端（矢印）
+  const arrowLen = 20;
+  const arrowAngle = 0.4;
+  const angle = Math.atan2(cy - y, x - cx);
+  
+  ctx.fillStyle = '#4ecd84';
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  ctx.lineTo(x - arrowLen * Math.cos(angle - arrowAngle), y + arrowLen * Math.sin(angle - arrowAngle));
+  ctx.lineTo(x - arrowLen * Math.cos(angle + arrowAngle), y + arrowLen * Math.sin(angle + arrowAngle));
+  ctx.closePath();
+  ctx.fill();
+  
+  // ベクトル先端の点
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.arc(x, y, 6, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // 回転方向インジケーター
+  if (idx > 0 && Math.abs(d.omega) > 10) {
+    const rotDir = d.omega > 0 ? '↺' : '↻';
+    ctx.fillStyle = d.omega > 0 ? '#4ecd84' : '#ff6b6b';
+    ctx.font = '30px sans-serif';
+    ctx.fillText(rotDir, x + 20, y);
+  }
+  
+  // 情報テキスト
+  ctx.fillStyle = '#fff';
+  ctx.font = '14px monospace';
+  ctx.fillText(`σ = ${sigma}`, 15, 25);
+  ctx.fillText(`t = ${d.t.toFixed(5)}`, 15, 45);
+  ctx.fillText(`|ζ| = ${d.abs.toFixed(6)}`, 15, 65);
+  
+  // 統計パネル更新
+  document.getElementById('statT').textContent = d.t.toFixed(6);
+  document.getElementById('statAbs').textContent = d.abs.toExponential(4);
+  document.getElementById('statRe').textContent = d.re.toExponential(4);
+  document.getElementById('statIm').textContent = d.im.toExponential(4);
+  document.getElementById('statOmega').textContent = d.omega.toFixed(1) + '°/dt';
+  
+  // 角度表示
+  document.getElementById('angleValue').textContent = d.argDeg.toFixed(1) + '°';
+  
+  // 回転バー（-180°〜+180°を0%〜100%に）
+  const barPercent = ((d.argDeg + 180) / 360) * 100;
+  document.getElementById('rotationBar').style.width = barPercent + '%';
+  
+  // 零点検出
+  const isNearZero = d.abs < 0.03;
+  document.getElementById('statAbs').className = 'stat-value' + (isNearZero ? ' warning' : '');
+  document.getElementById('zeroAlert').className = 'zero-alert' + (isNearZero ? ' active' : '');
+  
+  // 零点エフェクト
+  if (isNearZero) {
+    ctx.strokeStyle = '#ff6b6b';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 30 + Math.sin(Date.now() / 100) * 10, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+}
+
+function startAnimation() {
+  stopAnimation();
+  collectData();
+  frame = 0;
+  
+  const speed = parseInt(document.getElementById('speed').value);
+  
+  function step() {
+    drawFrame(frame);
+    frame += speed;
+    
+    if (frame >= data.length) frame = 0;
+    
+    animationId = requestAnimationFrame(step);
+  }
+  
+  step();
+}
+
+function stopAnimation() {
+  if (animationId) {
+    cancelAnimationFrame(animationId);
+    animationId = null;
+  }
+}
+
+function stepForward() {
+  stopAnimation();
+  if (data.length === 0) collectData();
+  frame = Math.min(frame + 10, data.length - 1);
+  drawFrame(frame);
+}
+
+function stepBackward() {
+  stopAnimation();
+  if (data.length === 0) collectData();
+  frame = Math.max(frame - 10, 0);
+  drawFrame(frame);
+}
+
+// 初期表示
+collectData();
+drawFrame(Math.floor(data.length / 2));
+</script>
+
+</body>
+</html>

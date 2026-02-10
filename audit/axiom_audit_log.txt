@@ -1,0 +1,3 @@
+'RHLean.zeta_zero_iff_geo_zero_on_critical' depends on axioms: [propext, Classical.choice, Quot.sound]
+'RHLean.bridge_forward' depends on axioms: [propext, Classical.choice, Quot.sound]
+'RHLean.bridge_reverse_with_cover' depends on axioms: [propext, Classical.choice, Quot.sound]

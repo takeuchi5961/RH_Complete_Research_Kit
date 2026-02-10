@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>リーマン零点探索 - 複数零点対応</title>
+<style>
+body {
+    margin: 0;
+    padding: 20px;
+    background: #000;
+    color: #fff;
+    font-family: monospace;
+}
+.container {
+    max-width: 1400px;
+    margin: 0 auto;
+}
+h2 { color: #0f0; }
+.section {
+    background: #111;
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+}
+.preset-group {
+    margin-bottom: 20px;
+    padding: 15px;
+    background: #0a0a0a;
+    border-radius: 8px;
+}
+.preset-group h4 {
+    margin-top: 0;
+    color: #0ff;
+}
+.preset-buttons {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+button {
+    padding: 12px 20px;
+    background: #222;
+    color: #0f0;
+    border: 1px solid #0f0;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: bold;
+}
+button:hover { background: #0f0; color: #000; }
+button.active { background: #0f0; color: #000; }
+.result {
+    background: #0a0a0a;
+    padding: 15px;
+    border-left: 3px solid #0f0;
+    margin: 10px 0;
+    border-radius: 4px;
+}
+.warning { border-color: #f80; }
+.error { border-color: #f00; }
+.success { border-color: #0f0; background: #002200; }
+.value { color: #0ff; font-weight: bold; }
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+}
+th, td {
+    padding: 10px;
+    text-align: left;
+    border-bottom: 1px solid #333;
+}
+th { background: #0a0a0a; color: #0f0; }
+.progress {
+    width: 100%;
+    height: 30px;
+    background: #222;
+    border-radius: 4px;
+    overflow: hidden;
+    margin: 10px 0;
+}
+.progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #0a0, #0f0);
+    transition: width 0.3s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #000;
+    font-weight: bold;
+}
+.custom-input {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-top: 10px;
+}
+.custom-input input {
+    padding: 8px;
+    background: #222;
+    border: 1px solid #444;
+    color: #fff;
+    border-radius: 4px;
+    width: 120px;
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+    <h2>🎯 リーマンゼータ零点探索システム</h2>
+    
+    <div class="section">
+        <h3>📍 既知の零点</h3>
+        
+        <div class="preset-group">
+            <h4>第一零点 (t ≈ 14.134725)</h4>
+            <div class="preset-buttons">
+                <button onclick="searchZero(1, 'coarse')">粗探索 ±10</button>
+                <button onclick="searchZero(1, 'medium')">中探索 ±1</button>
+                <button onclick="searchZero(1, 'fine')">精密 ±0.1</button>
+                <button onclick="searchZero(1, 'ultra')">超精密 ±0.01</button>
+            </div>
+        </div>
+        
+        <div class="preset-group">
+            <h4>第二零点 (t ≈ 21.022040) ⭐ 発見！</h4>
+            <div class="preset-buttons">
+                <button onclick="searchZero(2, 'coarse')">粗探索 ±10</button>
+                <button onclick="searchZero(2, 'medium')">中探索 ±1</button>
+                <button onclick="searchZero(2, 'fine')">精密 ±0.1</button>
+                <button onclick="searchZero(2, 'ultra')">超精密 ±0.01</button>
+            </div>
+        </div>
+        
+        <div class="preset-group">
+            <h4>第三零点 (t ≈ 25.010858)</h4>
+            <div class="preset-buttons">
+                <button onclick="searchZero(3, 'coarse')">粗探索 ±10</button>
+                <button onclick="searchZero(3, 'medium')">中探索 ±1</button>
+                <button onclick="searchZero(3, 'fine')">精密 ±0.1</button>
+                <button onclick="searchZero(3, 'ultra')">超精密 ±0.01</button>
+            </div>
+        </div>
+        
+        <div class="preset-group">
+            <h4>カスタム探索</h4>
+            <div class="custom-input">
+                <label>t中心:</label>
+                <input type="number" id="customT" value="14.134725" step="0.001">
+                <label>範囲±:</label>
+                <input type="number" id="customRange" value="0.1" step="0.01">
+                <label>刻み:</label>
+                <select id="customDt">
+                    <option value="0.01">0.01</option>
+                    <option value="0.001" selected>0.001</option>
+                    <option value="0.0001">0.0001</option>
+                    <option value="0.00001">0.00001</option>
+                </select>
+                <button onclick="searchCustom()">実行</button>
+            </div>
+        </div>
+        
+        <div class="preset-buttons" style="margin-top:20px;">
+            <button onclick="scanWalls()" style="border-color:#08f; color:#08f;">🧱 壁スキャン</button>
+            <button onclick="exportResults()" style="border-color:#f80; color:#f80;">💾 JSON出力</button>
+        </div>
+    </div>
+    
+    <div class="section" id="status">
+        <h3>⏳ ステータス</h3>
+        <p>零点を選択して探索を開始してください</p>
+    </div>
+    
+    <div class="section" id="results" style="display:none;">
+        <h3>📊 結果</h3>
+        <div id="resultsContent"></div>
+    </div>
+</div>
+
+<script>
+// 既知の零点の近似値
+const knownZeros = {
+    1: 14.134725142,
+    2: 21.022039639,
+    3: 25.010857580,
+    4: 30.424876126,
+    5: 32.935061588
+};
+
+// ζ関数計算
+function zeta(sigma, t, N = 5000) {
+    let eta_re = 0, eta_im = 0;
+    
+    for (let n = 1; n <= N; n++) {
+        const sign = (n % 2 === 1) ? 1 : -1;
+        const logn = Math.log(n);
+        const mag = Math.exp(-sigma * logn);
+        const arg = -t * logn;
+        eta_re += sign * mag * Math.cos(arg);
+        eta_im += sign * mag * Math.sin(arg);
+    }
+    
+    const log2 = Math.log(2);
+    const exp_r = Math.exp((1 - sigma) * log2);
+    const exp_arg = -t * log2;
+    const d_re = 1 - exp_r * Math.cos(exp_arg);
+    const d_im = -exp_r * Math.sin(exp_arg);
+    const d2 = d_re * d_re + d_im * d_im + 1e-300;
+    
+    const re = (eta_re * d_re + eta_im * d_im) / d2;
+    const im = (eta_im * d_re - eta_re * d_im) / d2;
+    
+    return { 
+        re, 
+        im, 
+        abs: Math.sqrt(re*re + im*im)
+    };
+}
+
+let allResults = {};
+
+async function search(sigma, tCenter, tRange, dt, N = 5000) {
+    const data = [];
+    let minAbs = Infinity;
+    let minPoint = null;
+    
+    const steps = Math.floor((2 * tRange) / dt);
+    
+    for (let i = 0; i <= steps; i++) {
+        const t = tCenter - tRange + i * dt;
+        const z = zeta(sigma, t, N);
+        
+        if (z.abs < minAbs) {
+            minAbs = z.abs;
+            minPoint = { t, ...z };
+        }
+        
+        if (i % 100 === 0) {
+            updateProgress(i, steps);
+            await new Promise(resolve => setTimeout(resolve, 0));
+        }
+    }
+    
+    return { minPoint, totalPoints: steps + 1 };
+}
+
+function updateProgress(current, total) {
+    const percent = (current / total * 100).toFixed(1);
+    const statusDiv = document.getElementById('status');
+    statusDiv.innerHTML = `
+        <h3>⏳ 計算中...</h3>
+        <div class="progress">
+            <div class="progress-bar" style="width:${percent}%">${percent}%</div>
+        </div>
+        <p>${current.toLocaleString()} / ${total.toLocaleString()} 点</p>
+    `;
+}
+
+async function searchZero(zeroNum, precision) {
+    const configs = {
+        'coarse': { tRange: 10, dt: 0.01, N: 3000, name: '粗探索' },
+        'medium': { tRange: 1, dt: 0.001, N: 5000, name: '中探索' },
+        'fine': { tRange: 0.1, dt: 0.0001, N: 8000, name: '精密探索' },
+        'ultra': { tRange: 0.01, dt: 0.00001, N: 10000, name: '超精密' }
+    };
+    
+    const config = configs[precision];
+    const tCenter = knownZeros[zeroNum];
+    const sigma = 0.5;
+    
+    document.getElementById('status').innerHTML = `
+        <h3>🔍 第${zeroNum}零点 - ${config.name}</h3>
+        <p>σ = ${sigma}</p>
+        <p>t中心 = ${tCenter}</p>
+        <p>範囲 = ±${config.tRange}</p>
+        <p>刻み = ${config.dt}</p>
+    `;
+    
+    const result = await search(sigma, tCenter, config.tRange, config.dt, config.N);
+    
+    const key = `zero${zeroNum}_${precision}`;
+    allResults[key] = {
+        zeroNum,
+        precision,
+        config,
+        result: result.minPoint,
+        totalPoints: result.totalPoints
+    };
+    
+    displayResult(key, zeroNum, config, result);
+}
+
+async function searchCustom() {
+    const tCenter = parseFloat(document.getElementById('customT').value);
+    const tRange = parseFloat(document.getElementById('customRange').value);
+    const dt = parseFloat(document.getElementById('customDt').value);
+    
+    const config = { tRange, dt, N: 5000, name: 'カスタム探索' };
+    const sigma = 0.5;
+    
+    const result = await search(sigma, tCenter, tRange, dt, config.N);
+    
+    allResults['custom_' + Date.now()] = {
+        config: { tCenter, ...config },
+        result: result.minPoint,
+        totalPoints: result.totalPoints
+    };
+    
+    displayResult('custom', 'カスタム', config, result);
+}
+
+function displayResult(key, zeroNum, config, result) {
+    document.getElementById('results').style.display = 'block';
+    const content = document.getElementById('resultsContent');
+    
+    const isZero = result.minPoint.abs < 1e-6;
+    const isNear = result.minPoint.abs < 1e-3;
+    const isClose = result.minPoint.abs < 0.01;
+    
+    const resultClass = isZero ? 'success' : isNear ? 'warning' : isClose ? 'warning' : 'error';
+    
+    let html = `
+        <div class="result ${resultClass}">
+            <h4>${typeof zeroNum === 'number' ? `第${zeroNum}零点` : zeroNum} - ${config.name}</h4>
+            <table>
+                <tr><th>項目</th><th>値</th></tr>
+                <tr><td>計算点数</td><td>${result.totalPoints.toLocaleString()}</td></tr>
+                <tr><td>t位置</td><td class="value">${result.minPoint.t.toFixed(12)}</td></tr>
+                <tr><td>|ζ(0.5+it)|</td><td class="value">${result.minPoint.abs.toExponential(10)}</td></tr>
+                <tr><td>Re(ζ)</td><td class="value">${result.minPoint.re.toExponential(10)}</td></tr>
+                <tr><td>Im(ζ)</td><td class="value">${result.minPoint.im.toExponential(10)}</td></tr>
+            </table>
+    `;
+    
+    if (isZero) {
+        html += `<p style="color:#0f0; font-size:18px; margin-top:10px;">🎯 零点を発見！ |ζ| < 10⁻⁶</p>`;
+    } else if (isNear) {
+        html += `<p style="color:#f80; margin-top:10px;">⚠️ 零点に非常に近い (|ζ| < 0.001)。次の精度で探索推奨。</p>`;
+    } else if (isClose) {
+        html += `<p style="color:#f80; margin-top:10px;">📍 零点に近い (|ζ| < 0.01)。より精密な探索を推奨。</p>`;
+    } else {
+        html += `<p style="color:#f00; margin-top:10px;">❌ この範囲では零点が遠い。</p>`;
+    }
+    
+    html += `</div>`;
+    
+    content.innerHTML = html + content.innerHTML;
+    
+    document.getElementById('status').innerHTML = `
+        <h3>✅ 完了</h3>
+        <p>次の精度を試すか、別の零点を探索してください</p>
+    `;
+}
+
+async function scanWalls() {
+    const sigmas = [0.49, 0.495, 0.499, 0.5, 0.501, 0.505, 0.51];
+    const tCenter = 14.134725;
+    const tRange = 0.5;
+    const dt = 0.001;
+    
+    const results = [];
+    
+    for (let i = 0; i < sigmas.length; i++) {
+        updateProgress(i, sigmas.length);
+        const result = await search(sigmas[i], tCenter, tRange, dt, 5000);
+        results.push({
+            sigma: sigmas[i],
+            min_distance: result.minPoint.abs,
+            t_at_min: result.minPoint.t,
+            re_at_min: result.minPoint.re,
+            im_at_min: result.minPoint.im
+        });
+        await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    
+    allResults['wall_scan'] = results;
+    displayWallResults(results);
+}
+
+function displayWallResults(results) {
+    document.getElementById('results').style.display = 'block';
+    const content = document.getElementById('resultsContent');
+    
+    let html = `<div class="result"><h4>🧱 壁スキャン結果</h4><table>
+        <tr><th>σ</th><th>最小距離</th><th>評価</th></tr>`;
+    
+    for (const r of results) {
+        const isWall = r.min_distance > 0.001;
+        const status = r.min_distance < 1e-6 ? '🎯' : isWall ? '🧱' : '⚠️';
+        const color = r.min_distance < 1e-6 ? '#0f0' : isWall ? '#f00' : '#f80';
+        html += `<tr><td>${r.sigma.toFixed(3)}</td>
+                 <td style="color:${color};">${r.min_distance.toExponential(4)}</td>
+                 <td>${status}</td></tr>`;
+    }
+    
+    html += `</table></div>`;
+    content.innerHTML = html + content.innerHTML;
+    
+    document.getElementById('status').innerHTML = '<h3>✅ 壁スキャン完了</h3>';
+}
+
+function exportResults() {
+    if (Object.keys(allResults).length === 0) {
+        alert('まず探索を実行してください');
+        return;
+    }
+    
+    const json = JSON.stringify(allResults, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'riemann_zeros_' + Date.now() + '.json';
+    a.click();
+}
+</script>
+
+</body>
+</html>
