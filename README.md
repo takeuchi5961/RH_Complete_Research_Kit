@@ -1,45 +1,84 @@
-# RH Complete Research Kit v3
+# RH Complete Research Kit v6
 
-このキットは、あなたの現在の流れ（Lean再ビルド → 監査 → ZIP化 → 数値記録CSV）を**一発実行**できるように整理した版です。
+リーマン予想（Riemann Hypothesis）の研究と検証のための包括的なツールキット。Lean 4 での形式検証、Python での数値計算、インタラクティブな可視化ツールを統合。
 
-## 同梱内容
-- Leanプロジェクト（`RHLean/`, `RHLean.lean`）
-- 監査スクリプト
-  - `scripts/01_build_and_audit.ps1`
-  - `scripts/02_make_audit_bundle.ps1`
-- 数値記録スクリプト
-  - `scripts/03_export_abcd_overlap.ps1`
-- 一括実行スクリプト
-  - `scripts/00_run_all.ps1`
-- 補助可視化 `visual/abc.html`
+## 📁 プロジェクト構造
 
-## 実行手順（PowerShell）
-```powershell
-Set-Location "C:\Users\banbo\Desktop\RH_Complete_Research_Kit_v3"
-elan override set leanprover/lean4:v4.28.0-rc1
-lake update
-lake exe cache get
+\\\
+RH_Complete_Research_Kit_v6/
+├── RHLean/                    # Lean 4 形式検証コード
+├── python/                    # Python 数値計算スクリプト
+├── visualization/             # インタラクティブ HTML 可視化
+├── data/                      # 計算結果データ（JSON）
+├── docs/                      # ドキュメント
+├── reproducibility/           # 再現性検証資料
+├── submission_docs/           # 論文投稿用資料
+├── scripts/                   # ビルド・監査スクリプト
+├── audit/                     # Axiom 監査記録
+├── images/                    # 図表・画像
+└── archive/                   # 古いバージョン
+\\\
 
-# これ1本で: CSV出力 → build/audit → ZIP作成
-powershell -ExecutionPolicy Bypass -File .\scripts\00_run_all.ps1
-```
+## 🚀 クイックスタート
 
-## 個別実行したい場合
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\03_export_abcd_overlap.ps1
-powershell -ExecutionPolicy Bypass -File .\scripts\01_build_and_audit.ps1
-powershell -ExecutionPolicy Bypass -File .\scripts\02_make_audit_bundle.ps1
-```
+### 必要環境
 
-## 生成物
-- `data/abcd_overlap_0p1_to_0p9_step0p01.csv`
-- `build_log.txt`
-- `no_placeholder_check.txt`（0件でも空ファイルを必ず作成）
-- `axiom_audit_log.txt`
-- `sha256_lean_files.txt`
-- `RHLean_AuditBundle_v1.zip`
-- `RELEASE_NOTE.txt`
+- **Lean 4** (v4.14.0-rc1 以上)
+- **Python 3.8+** (mpmath, numpy, matplotlib)
+- **PowerShell** (Windows)
 
-## 重要メモ
-- PowerShellに貼るのは**コマンドだけ**。プロンプト文字列（`PS C:\...>`）を一緒に貼るとエラーになります。
-- `#print axioms` に `propext, Classical.choice, Quot.sound` が出るのは、通常のLean/Mathlib依存の表示です（`axiom/sorry/admit` 検査とは別軸）。
+### ビルド手順
+
+\\\powershell
+lake build                           # Lean プロジェクトをビルド
+.\scripts\00_run_all.ps1             # すべて自動実行
+.\scripts\01_build_and_audit.ps1     # ビルドと監査のみ
+\\\
+
+## 📊 主要コンポーネント
+
+### 1. Lean 4 形式検証 (RHLean/)
+
+| ファイル | 内容 |
+|---------|------|
+| RhBridge.lean | メイン証明ファイル |
+| ABCDGeometry.lean | ABCD 幾何モデル |
+| DeltaCore.lean | Delta 関数の定義 |
+
+### 2. Python 数値検証 (python/)
+
+- generate_evidence.py - 数値エビデンス生成
+- visualize_rh_geometry.py - 幾何モデル可視化
+- zeta_spiral.py - ゼータ螺旋シミュレーション
+
+### 3. 可視化ツール (visualization/)
+
+ブラウザで HTML ファイルを直接開いて使用：
+- 01_Global_Zeta_3D.html - 3D ゼータ関数
+- 02_Zeta_Exact_Zero_Focus.html - ゼロ点拡大
+- 03_Vector_Core_Dynamics.html - ベクトル場
+- GeometricModelABCD.html - ABCD 幾何モデル
+
+## 🔬 検証結果
+
+- **data/riemann_zeros_*.json** - リーマンゼロ点データ
+- **audit/axiom_audit_log.txt** - Axiom 使用状況
+
+## ⚠️ 注意事項
+
+1. **.lake/ フォルダー**: Git 管理対象外（ビルド成果物）
+2. **Sorry の使用**: RhBridge.lean に 2 箇所あり（証明未完）
+3. **数値精度**: mpmath で 50 桁精度を使用
+
+## 📄 ライセンス
+
+MIT License
+
+## 👤 著者
+
+竹内 寛樹 (Hiroki Takeuchi)  
+大分県在住 数学研究者
+
+---
+
+**バージョン:** v6 | **最終更新:** 2025年2月
